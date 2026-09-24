@@ -202,4 +202,4 @@ C:/xampp/htdocs/cookfit
 
 ## 11. Kontributor
 
-* **Full-Stack Developer:** [Ghassan Rizki Rusmana](https://github.com/username) — *Bertanggung jawab atas perancangan database nutrisi, pembuatan algoritma pencocokan resep, perhitungan kalori, dan antarmuka web.*
+* **Full-Stack Developer:** [ghassanrizki07-dev](https://github.com/username) — *Bertanggung jawab atas perancangan database nutrisi, pembuatan algoritma pencocokan resep, perhitungan kalori, dan antarmuka web.*
