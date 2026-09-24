@@ -1,11 +1,3 @@
-# 🍳 CookFit: Web Mobile Rekomendasi Resep & Penghitung Kalori Rumahan
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/Node.js-v18%2B-green.svg)](https://nodejs.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-
----
-
 ## 📌 Daftar Isi
 1. [Penjabaran Judul](#1-penjabaran-judul)
 2. [Big Picture Permasalahan](#2-big-picture-permasalahan)
@@ -55,7 +47,7 @@ Masalah sehari-hari di rumah atau tempat kos sering kali berkisar pada dua hal: 
 
 1. **Sangat Ringkas Namun Fungsional:** Menggabungkan masalah praktis dapur (*pantry matching*) dengan pencatatan kesehatan (*calorie tracking*) dalam satu aplikasi terpadu.
 2. **Implementasi Algoritma Dasar yang Menarik:** Menggunakan logika pencocokan himpunan (*set intersection*) untuk resep dan perhitungan aritmatika dasar untuk gizi, sangat pas untuk portofolio RPL.
-3. **Tidak Membutuhkan API Mahal / AI Rumit:** Semua data resep dan data kalori bahan baku dapat disimpan dalam basis data lokal (SQLite/JSON) sehingga dapat berjalan cepat dan hemat biaya hosting.
+3. **Tidak Membutuhkan API Mahal / AI Rumit:** Semua data resep dan data kalori bahan baku dapat disimpan dalam basis data lokal (MySQL) sehingga dapat berjalan cepat dan hemat biaya hosting.
 
 ---
 
@@ -93,7 +85,7 @@ Masalah sehari-hari di rumah atau tempat kos sering kali berkisar pada dua hal: 
 [ Antarmuka Web Smartphone (Pilih Bahan / Catat Makan) ]
                           │
                           ▼
-             [ Backend Service (Node.js/PHP) ]
+             [ Backend Service (PHP / Python) ]
                           │
      ┌────────────────────┴────────────────────┐
      ▼                                         ▼
@@ -102,8 +94,8 @@ Masalah sehari-hari di rumah atau tempat kos sering kali berkisar pada dua hal: 
      │                                         │
      └────────────────────┬────────────────────┘
                           ▼
-            [ Database SQLite / PostgreSQL ]
-            (Tabel: Ingredients, Recipes, DailyLogs)
+                   [ Database MySQL ]
+        (Tabel: ingredients, recipes, daily_logs)
 ```
 
 ### Logika Engine & Rumus Perhitungan
@@ -148,21 +140,22 @@ $$BMR = (10 \times \text{BB}) + (6.25 \times \text{TB}) - (5 \times \text{Usia})
 
 ```text
 cookfit/
-├── public/                  # Halaman Statis & Asset
-│   ├── css/                 # Custom Tailwind Styling
-│   ├── js/                  # Logic Client-side (Matching & Calorie UI)
-│   └── index.html           # Main Application View
-├── src/
-│   ├── config/              # Database Connection Setup
-│   ├── controllers/         # Logic Controller
-│   │   ├── recipeController.js   # Matching Logic Engine
-│   │   └── calorieController.js  # Nutrition & Log Engine
-│   ├── data/                # Seed Data Master Resep & Kalori Bahan
-│   └── routes/              # Endpoints API (/api/recipes, /api/logs)
+├── config/                  # Konfigurasi Koneksi Database MySQL
+│   └── database.php / db.py
+├── controllers/             # Logic Backend & Pemroses Data
+│   ├── RecipeController     # Algoritma Pencocokan Resep
+│   └── CalorieController    # Algoritma Kalkulasi Gizi & Kalori
+├── assets/                  # File Statis Frontend
+│   ├── css/                 # Custom Styling CSS
+│   ├── js/                  # JavaScript Interaktif (Filter & Calculator)
+│   └── img/                 # Gambar Resep & Ikon Bahan
+├── views/                   # Tampilan Antarmuka Web
+│   ├── index.php / .html    # Halaman Utama Pilih Bahan (Mobile View)
+│   ├── resep.php / .html    # Halaman Rekomendasi Resep
+│   └── tracker.php / .html  # Halaman Catatan Kalori Harian
 ├── database/
-│   └── cookfit.db           # File Database SQLite
-├── package.json
-└── server.js                # Main Server App
+│   └── db_cookfit.sql       # File Import Database MySQL
+└── index.php / app.py       # Entry point utama aplikasi
 ```
 
 ---
@@ -170,30 +163,26 @@ cookfit/
 ## 9. Panduan Instalasi & Menjalankan
 
 ### Prasyarat Sistem
-* Node.js v18+
-* Web Browser modern di HP/Laptop
+* XAMPP / Laragon (Untuk PHP & MySQL) **atau** Python 3.x
+* Web Browser (Google Chrome / Edge)
 
-### Langkah 1: Clone Repositori
+### Langkah 1: Clone / Download Repositori
+Letakkan folder proyek di direktori `htdocs` (jika menggunakan XAMPP) atau `www` (jika menggunakan Laragon).
 ```bash
-git clone [https://github.com/username/cookfit.git](https://github.com/username/cookfit.git)
-cd cookfit
+C:/xampp/htdocs/cookfit
 ```
 
-### Langkah 2: Install Dependency
-```bash
-npm install
-```
+### Langkah 2: Import Database MySQL
+1. Buka browser dan akses `http://localhost/phpmyadmin`.
+2. Buat database baru dengan nama `db_cookfit`.
+3. Import file `db_cookfit.sql` yang berada di dalam folder `database/`.
 
-### Langkah 3: Menjalankan Database Seed (Isi Master Data Resep & Kalori)
-```bash
-npm run seed
-```
-
-### Langkah 4: Menjalankan Server
-```bash
-npm start
-```
-Akses dari browser HP/Laptop di `http://localhost:3000`.
+### Langkah 3: Menjalankan Aplikasi
+1. Pastikan module **Apache** dan **MySQL** di XAMPP/Laragon sudah dalam status **Start**.
+2. Buka browser di HP/Laptop dan akses alamat:
+   ```text
+   http://localhost/cookfit
+   ```
 
 ---
 
@@ -202,15 +191,15 @@ Akses dari browser HP/Laptop di `http://localhost:3000`.
 ```text
 [ Minggu 1: Database & UI ] ──► [ Minggu 2: Recipe Matcher ] ──► [ Minggu 3: Calorie Tracker ]
 - Master Data Resep & Kalori   - Fitur Filter Bahan Kulkas      - Log Makan Harian pengguna
-- Layout UI Web Mobile         - Algorithm Recipe Matching      - Grafik Progress Target Kalori
+- Layout UI Web Mobile CSS     - Algorithm Recipe Matching      - Grafik Progress Target Kalori
 ```
 
-* **Minggu 1:** Menyiapkan skema database, mengisi master data 30+ resep rumahan dasar beserta kalori bahannya, serta mendesain antarmuka *mobile*.
-* **Minggu 2:** Membangun *Recipe Matching Engine* (filter bahan terpakai & persentase kecocokan resep).
-* **Minggu 3:** Membangun *Calorie Tracker* (jurnal makan harian, kalkulator BMR/TDEE, dan grafik statistik konsumsi kalori).
+* **Minggu 1:** Menyiapkan skema database MySQL, mengisi master data 30+ resep rumahan dasar beserta kalori bahannya, serta mendesain antarmuka *mobile* berbasis CSS.
+* **Minggu 2:** Membangun *Recipe Matching Engine* di backend PHP/Python (filter bahan terpakai & hitung persentase kecocokan resep).
+* **Minggu 3:** Membangun *Calorie Tracker* (jurnal makan harian, kalkulator BMR/TDEE, dan ringkasan konsumsi kalori harian).
 
 ---
 
 ## 11. Kontributor
 
-* **Full-Stack Developer:** [Nama Anda](https://github.com/username) — *Bertanggung jawab atas perancangan database nutrisi, pembuatan algoritma pencocokan resep, perhitungan kalori, dan antarmuka web.*
+* **Full-Stack Developer:** [Ghassan Rizki Rusmana](https://github.com/username) — *Bertanggung jawab atas perancangan database nutrisi, pembuatan algoritma pencocokan resep, perhitungan kalori, dan antarmuka web.*
