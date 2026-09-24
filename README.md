@@ -138,9 +138,9 @@ $$BMR = (10 \times \text{BB}) + (6.25 \times \text{TB}) - (5 \times \text{Usia})
 
 ## 7. Teknologi yang Digunakan
 
-* **Frontend:** Tailwind CSS + Vue.js (atau React / Vanilla JS) — Untuk pengoperasian UI yang cepat dan responsif tanpa *reload* halaman.
-* **Backend:** Node.js (Express.js) **atau** PHP (Laravel / Native) — Penanganan API cepat.
-* **Database:** SQLite atau MySQL — Menyimpan data master resep, tabel kalori bahan baku, dan riwayat jurnal harian pengguna.
+* **Frontend:** HTML5, CSS3, & JavaScript (Vanilla JS) — Dibuat responsif agar nyaman dibuka di layar HP tanpa perlu *framework* JavaScript yang rumit.
+* **Backend:** PHP (Native / CodeIgniter) **atau** Python (Flask) — Bahasa yang umum, mudah dipelajari, serta cepat untuk pemrosesan logika data dan API.
+* **Database:** MySQL / MariaDB — Digunakan untuk menyimpan data master resep, tabel kalori bahan baku, dan catatan jurnal harian pengguna (dikelola via phpMyAdmin).
 
 ---
 
