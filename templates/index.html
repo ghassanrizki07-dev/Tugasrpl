@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CookFit - Rekomendasi Resep & Penghitung Kalori Harian</title>
+    <meta name="description" content="Aplikasi mobile web CookFit untuk rekomendasi resep berdasarkan isi kulkas & kalkulator nutrisi harian.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <div class="app-viewport">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand-logo">
+                <div class="brand-icon">🍳</div>
+                <div>
+                    <div class="brand-title">CookFit</div>
+                </div>
+            </div>
+            <div class="header-badge" id="selected-count-badge">0 Bahan</div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main style="flex: 1;">
+            
+            <!-- TAB 1: MY PANTRY (Bahan Dapur) -->
+            <section id="pantry-tab" class="tab-content active">
+                <div class="section-header">
+                    <h1 class="section-title">🧺 My Pantry (Kulkas Saya)</h1>
+                    <p class="section-subtitle">Centang bahan makanan yang tersedia di dapur Anda saat ini.</p>
+                </div>
+
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="pantry-search" class="search-input" placeholder="Cari nama bahan (cth: Telur, Kangkung)..." oninput="filterPantry()">
+                </div>
+
+                <!-- Dynamic Ingredient Categories List -->
+                <div id="pantry-categories-container">
+                    <div style="text-align:center; padding: 40px; color: #94a3b8;">Loading bahan dapur...</div>
+                </div>
+
+                <div class="sticky-action-bar">
+                    <button class="btn-primary" onclick="document.querySelector('[data-tab=recipes-tab]').click()">
+                        <span>🔥 Cari Resep Cocok</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- TAB 2: RECIPE MATCHER (Rekomendasi Resep) -->
+            <section id="recipes-tab" class="tab-content">
+                <div class="section-header">
+                    <h2 class="section-title">🍳 Rekomendasi Resep Smart</h2>
+                    <p class="section-subtitle">Resep diurutkan berdasarkan persentase kesesuaian bahan kulkas Anda.</p>
+                </div>
+
+                <!-- Dynamic Recipe Cards -->
+                <div id="recipe-list-container">
+                    <!-- Loaded via JavaScript -->
+                </div>
+            </section>
+
+            <!-- TAB 3: NUTRITRACKER & DAILY LOG -->
+            <section id="tracker-tab" class="tab-content">
+                <div class="section-header">
+                    <h2 class="section-title">📊 NutriTracker Harian</h2>
+                    <p class="section-subtitle">Pantau asupan kalori & makronutrisi harian Anda.</p>
+                </div>
+
+                <!-- Dashboard Summary -->
+                <div class="tracker-summary-card">
+                    <div class="summary-top">
+                        <span style="font-size: 13px; font-weight: 700; color: #60a5fa;">PROGRESS KALORI HARI INI</span>
+                        <span style="font-size: 12px; color: #94a3b8;">Rumus Mifflin-St Jeor</span>
+                    </div>
+                    <div class="calorie-gauge">
+                        <div class="gauge-numbers">
+                            <span class="gauge-current" id="current-calories-val">0</span>
+                            <span class="gauge-target">Target: <strong id="target-tdee-val">2200</strong> kcal</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="macros-grid">
+                        <div class="macro-box">
+                            <div class="macro-label">PROTEIN</div>
+                            <div class="macro-val" style="color: #34d399;" id="macro-protein">0g</div>
+                        </div>
+                        <div class="macro-box">
+                            <div class="macro-label">KARBO</div>
+                            <div class="macro-val" style="color: #60a5fa;" id="macro-carbs">0g</div>
+                        </div>
+                        <div class="macro-box">
+                            <div class="macro-label">LEMAK</div>
+                            <div class="macro-val" style="color: #fbbf24;" id="macro-fat">0g</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <h3 class="section-title" style="font-size:15px;">📝 Jurnal Makan Hari Ini</h3>
+                </div>
+
+                <div id="daily-logs-container">
+                    <!-- Logs via JavaScript -->
+                </div>
+            </section>
+
+            <!-- TAB 4: PROFILE & BMR CALCULATOR -->
+            <section id="profile-tab" class="tab-content">
+                <div class="section-header">
+                    <h2 class="section-title">👤 Profil & Kalkulator BMR</h2>
+                    <p class="section-subtitle">Hitung batas kalori harian (TDEE) berdasarkan kondisi fisik Anda.</p>
+                </div>
+
+                <div class="tracker-summary-card" style="margin-bottom: 20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:12px; color:#94a3b8;">Estimasi BMR (Metabolisme Basal)</div>
+                            <div style="font-size:22px; font-weight:800; color:#34d399;" id="disp-bmr">1605 kcal</div>
+                        </div>
+                        <div>
+                            <div style="font-size:12px; color:#94a3b8;">Target TDEE (Kebutuhan Harian)</div>
+                            <div style="font-size:22px; font-weight:800; color:#60a5fa;" id="disp-tdee">2206 kcal</div>
+                        </div>
+                    </div>
+                </div>
+
+                <form onsubmit="saveProfile(event)" style="background: var(--card-bg); border: 1px solid var(--card-border); padding:20px; border-radius:18px;">
+                    <div class="form-group">
+                        <label class="form-label" for="prof-name">Nama Pengguna</label>
+                        <input type="text" id="prof-name" class="form-control" value="Pengguna CookFit" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="prof-gender">Jenis Kelamin</label>
+                        <select id="prof-gender" class="form-control">
+                            <option value="male">Pria</option>
+                            <option value="female">Wanita</option>
+                        </select>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                        <div class="form-group">
+                            <label class="form-label" for="prof-weight">Berat (kg)</label>
+                            <input type="number" step="0.1" id="prof-weight" class="form-control" value="65" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="prof-height">Tinggi (cm)</label>
+                            <input type="number" step="0.1" id="prof-height" class="form-control" value="170" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="prof-age">Usia (thn)</label>
+                            <input type="number" id="prof-age" class="form-control" value="22" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="prof-activity">Tingkat Aktivitas Harian</label>
+                        <select id="prof-activity" class="form-control">
+                            <option value="1.2">Sangat Sedikit / Duduk Saja (x1.2)</option>
+                            <option value="1.375" selected>Ringan (Olahraga 1-3x/minggu) (x1.375)</option>
+                            <option value="1.55">Sedang (Olahraga 3-5x/minggu) (x1.55)</option>
+                            <option value="1.725">Berat (Olahraga 6-7x/minggu) (x1.725)</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn-primary" style="margin-top:10px;">💾 Simpan & Hitung Ulang TDEE</button>
+                </form>
+            </section>
+
+        </main>
+
+        <!-- Bottom Navigation Tabs Bar -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-tab="pantry-tab">
+                <span class="nav-icon">🧺</span>
+                <span>My Pantry<span class="nav-badge" id="nav-pantry-badge">0</span></span>
+            </button>
+            <button class="nav-item" data-tab="recipes-tab">
+                <span class="nav-icon">🍳</span>
+                <span>Resep Match</span>
+            </button>
+            <button class="nav-item" data-tab="tracker-tab">
+                <span class="nav-icon">📊</span>
+                <span>NutriTracker</span>
+            </button>
+            <button class="nav-item" data-tab="profile-tab">
+                <span class="nav-icon">👤</span>
+                <span>BMR / Profil</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- Recipe Detail Modal -->
+    <div id="recipe-modal" class="modal-overlay">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <h3 id="modal-recipe-title" style="font-size: 18px; margin-bottom: 14px; color: var(--text-main);"></h3>
+            
+            <h4 style="font-size: 14px; color: #60a5fa; margin-bottom: 8px;">🛒 Bahan-Bahan & Rincian Kalori:</h4>
+            <ul id="modal-ingredients-list" style="padding-left: 20px; font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6;"></ul>
+
+            <h4 style="font-size: 14px; color: #34d399; margin-bottom: 8px;">👨‍🍳 Langkah-Langkah Memasak:</h4>
+            <div id="modal-instructions" style="font-size: 13px; color: var(--text-main); line-height: 1.7; background: rgba(15,23,42,0.6); padding: 12px; border-radius: 12px; border: 1px solid var(--card-border);"></div>
+        </div>
+    </div>
+
+    <!-- Custom JS -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
