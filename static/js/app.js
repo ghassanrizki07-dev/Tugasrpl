@@ -88,6 +88,7 @@ const FALLBACK_RECIPES = [
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     loadIngredients();
+    loadDailyLogs();
     updateTrackerUI();
     updateProfileUI();
 });
@@ -345,11 +346,24 @@ function closeModal() {
 }
 
 // ==========================================
-// NUTRITRACKER & DAILY LOG (Interactive local log)
 // ==========================================
-function logRecipeToTracker(title, calories, protein, carbs, fat) {
-    const newLog = {
-        id: Date.now(),
+// NUTRITRACKER & DAILY LOG (Connected to Backend API)
+// ==========================================
+async function loadDailyLogs() {
+    try {
+        const res = await fetch('/api/daily-logs');
+        const json = await res.json();
+        if (json.status === 'success') {
+            dailyLogs = json.data;
+        }
+    } catch (err) {
+        // Fallback local memory
+    }
+    updateTrackerUI();
+}
+
+async function logRecipeToTracker(title, calories, protein, carbs, fat) {
+    const payload = {
         recipe_title: title,
         meal_type: 'Makan Siang',
         calories: calories,
@@ -357,12 +371,44 @@ function logRecipeToTracker(title, calories, protein, carbs, fat) {
         carbs: carbs,
         fat: fat
     };
-    dailyLogs.unshift(newLog);
+
+    try {
+        const res = await fetch('/api/daily-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+            await loadDailyLogs();
+            alert(`✅ "${title}" berhasil ditambahkan ke NutriTracker!`);
+            return;
+        }
+    } catch (err) {
+        // Fallback client side
+    }
+
+    const fallbackLog = {
+        id: Date.now(),
+        ...payload
+    };
+    dailyLogs.unshift(fallbackLog);
     alert(`✅ "${title}" berhasil ditambahkan ke NutriTracker!`);
     updateTrackerUI();
 }
 
-function deleteLogEntry(id) {
+async function deleteLogEntry(id) {
+    try {
+        const res = await fetch(`/api/daily-logs/${id}`, { method: 'DELETE' });
+        const json = await res.json();
+        if (json.status === 'success') {
+            await loadDailyLogs();
+            return;
+        }
+    } catch (err) {
+        // Fallback local filter
+    }
+
     dailyLogs = dailyLogs.filter(l => l.id !== id);
     updateTrackerUI();
 }
@@ -426,7 +472,7 @@ function renderLogList() {
 }
 
 // ==========================================
-// PROFILE & BMR/TDEE CALCULATOR
+// PROFILE & BMR/TDEE CALCULATOR (Connected to Backend)
 // ==========================================
 function updateProfileUI() {
     const bmrEl = document.getElementById('disp-bmr');
@@ -435,7 +481,7 @@ function updateProfileUI() {
     if (tdeeEl) tdeeEl.textContent = `${userProfile.tdee} kcal`;
 }
 
-function saveProfile(e) {
+async function saveProfile(e) {
     e.preventDefault();
 
     const name = document.getElementById('prof-name').value;
@@ -444,6 +490,40 @@ function saveProfile(e) {
     const height = parseFloat(document.getElementById('prof-height').value) || 165;
     const age = parseInt(document.getElementById('prof-age').value) || 20;
     const activity = parseFloat(document.getElementById('prof-activity').value) || 1.375;
+
+    try {
+        const res = await fetch('/api/calculate-bmr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                gender,
+                weight,
+                height,
+                age,
+                activity_level: activity
+            })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+            userProfile = {
+                name,
+                gender,
+                weight,
+                height,
+                age,
+                activity_level: activity,
+                bmr: json.data.bmr,
+                tdee: json.data.tdee,
+                target_macros: json.data.target_macros
+            };
+            updateProfileUI();
+            updateTrackerUI();
+            alert('✅ Profil & Target TDEE Harian Berhasil Dihitung oleh Backend!');
+            return;
+        }
+    } catch (err) {
+        // Fallback local formula
+    }
 
     let bmr = 0;
     if (gender === 'male') {
