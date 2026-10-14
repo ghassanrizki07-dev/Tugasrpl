@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     loadIngredients();
     loadDailyLogs();
+    loadShoppingList();
     updateTrackerUI();
     updateProfileUI();
 });
@@ -103,20 +104,31 @@ function initNavigation() {
     navItems.forEach(item => {
         item.addEventListener('click', () => {
             const targetTab = item.dataset.tab;
-            
-            navItems.forEach(n => n.classList.remove('active'));
-            tabContents.forEach(t => t.classList.remove('active'));
-
-            item.classList.add('active');
-            const targetEl = document.getElementById(targetTab);
-            if (targetEl) targetEl.classList.add('active');
-
-            if (targetTab === 'recipes-tab') {
-                triggerRecipeMatching();
-            }
+            switchToTab(targetTab);
         });
     });
 }
+
+function switchToTab(targetTab) {
+    const navItems = document.querySelectorAll('.nav-item');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    navItems.forEach(n => n.classList.remove('active'));
+    tabContents.forEach(t => t.classList.remove('active'));
+
+    const navBtn = document.querySelector(`.nav-item[data-tab="${targetTab}"]`);
+    if (navBtn) navBtn.classList.add('active');
+
+    const targetEl = document.getElementById(targetTab);
+    if (targetEl) targetEl.classList.add('active');
+
+    if (targetTab === 'recipes-tab') {
+        triggerRecipeMatching();
+    } else if (targetTab === 'shopping-tab') {
+        loadShoppingList();
+    }
+}
+
 
 // ==========================================
 // PANTRY & INGREDIENT CHECKLIST
@@ -316,8 +328,11 @@ function renderRecipeList(recipes) {
             `}
 
             <div class="recipe-actions">
-                <button class="btn-secondary" onclick="viewRecipeDetail(${r.id})">📖 Panduan Resep</button>
+                <button class="btn-secondary" onclick="viewRecipeDetail(${r.id})">📖 Panduan</button>
                 <button class="btn-outline-primary" onclick="logRecipeToTracker('${r.title.replace(/'/g, "\\'")}', ${r.total_calories}, ${r.total_protein}, ${r.total_carbs}, ${r.total_fat})">+ Log Makan</button>
+                ${r.missing_ingredients && r.missing_ingredients.length > 0 ? `
+                    <button class="btn-shop-recipe" onclick="addMissingToShopping(${r.id})">🛒 Beli Bahan</button>
+                ` : ''}
             </div>
         `;
 
@@ -541,3 +556,226 @@ async function saveProfile(e) {
     updateTrackerUI();
     alert('✅ Profil & Target TDEE Harian Berhasil Diperbarui!');
 }
+
+// ==========================================
+// US-4: SHOPPING LIST LOGIC
+// ==========================================
+let shoppingItems = [];
+let shoppingSummary = { total_items: 0, bought_count: 0, pending_count: 0, completion_percentage: 0 };
+
+async function loadShoppingList() {
+    try {
+        const res = await fetch('/api/shopping-list');
+        const json = await res.json();
+        if (json.status === 'success') {
+            shoppingItems = json.data.items || [];
+            shoppingSummary = json.data.summary || {};
+            renderShoppingList(shoppingItems, shoppingSummary);
+            return;
+        }
+    } catch (err) {
+        console.warn('Gagal memuat daftar belanja dari backend:', err);
+    }
+    renderShoppingList(shoppingItems, shoppingSummary);
+}
+
+function renderShoppingList(items, summary) {
+    const container = document.getElementById('shopping-items-container');
+    const badge = document.getElementById('nav-shopping-badge');
+    const progText = document.getElementById('shopping-progress-text');
+    const progBar = document.getElementById('shopping-progress-bar');
+
+    const total = summary.total_items || items.length;
+    const bought = summary.bought_count || items.filter(i => i.bought).length;
+    const pct = summary.completion_percentage || (total > 0 ? Math.round((bought / total) * 100) : 0);
+
+    if (badge) badge.textContent = total - bought;
+    if (progText) progText.textContent = `${bought}/${total} Terbeli (${pct}%)`;
+    if (progBar) progBar.style.width = `${pct}%`;
+
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!items || items.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-muted); background: var(--card-bg); border-radius: 14px; border: 1px dashed var(--card-border);">
+                <div style="font-size: 32px; margin-bottom: 8px;">🛒</div>
+                <div style="font-size: 14px; font-weight: 600; color: var(--text-main);">Daftar Belanja Masih Kosong</div>
+                <div style="font-size: 12px; margin-top: 4px;">Pilih resep di tab "Resep Match" lalu klik "Beli Bahan", atau tambahkan manual di atas.</div>
+            </div>
+        `;
+        return;
+    }
+
+    items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = `shopping-item-card ${item.bought ? 'bought' : ''}`;
+        card.innerHTML = `
+            <div class="shopping-item-left">
+                <input type="checkbox" class="shopping-checkbox" ${item.bought ? 'checked' : ''} onchange="toggleShoppingItem(${item.id})">
+                <div>
+                    <div class="item-title">
+                        ${item.name}
+                        ${item.count > 1 ? `<span class="item-badge">x${item.count}</span>` : ''}
+                    </div>
+                    <div class="item-meta">
+                        <span>📦 ${item.amount}</span> • <span style="color: #60a5fa;">${item.category}</span>
+                        ${item.recipes && item.recipes.length > 0 ? ` • <span style="color: #fbbf24;">Resep: ${item.recipes.join(', ')}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+            <div>
+                <button class="btn-del" onclick="deleteShoppingItem(${item.id})" title="Hapus dari daftar belanja">✕</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+async function addMissingToShopping(recipeId) {
+    const r = currentRecipes.find(item => item.id === recipeId) || FALLBACK_RECIPES.find(item => item.id === recipeId);
+    if (!r || !r.missing_ingredients || r.missing_ingredients.length === 0) {
+        alert('Semua bahan untuk resep ini sudah lengkap di dapur Anda!');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/shopping-list/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                recipe_title: r.title,
+                missing_ingredients: r.missing_ingredients
+            })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+            alert(`✅ ${json.message}`);
+            switchToTab('shopping-tab');
+            return;
+        }
+    } catch (err) {
+        console.warn('Backend offline, fallback lokal');
+    }
+
+    // Fallback lokal
+    r.missing_ingredients.forEach(m => {
+        const existing = shoppingItems.find(i => i.name.toLowerCase() === m.name.toLowerCase());
+        if (existing) {
+            existing.count += 1;
+        } else {
+            shoppingItems.push({
+                id: Date.now() + Math.random(),
+                name: m.name,
+                category: 'Bahan Dapur',
+                amount: 'secukupnya',
+                bought: false,
+                count: 1,
+                recipes: [r.title]
+            });
+        }
+    });
+    alert(`✅ Bahan kurang untuk "${r.title}" ditambahkan ke daftar belanja!`);
+    switchToTab('shopping-tab');
+}
+
+async function toggleShoppingItem(itemId) {
+    try {
+        const res = await fetch(`/api/shopping-list/${itemId}/toggle`, { method: 'PATCH' });
+        const json = await res.json();
+        if (json.status === 'success') {
+            loadShoppingList();
+            return;
+        }
+    } catch (err) {}
+
+    const item = shoppingItems.find(i => i.id === itemId);
+    if (item) {
+        item.bought = !item.bought;
+        renderShoppingList(shoppingItems, shoppingSummary);
+    }
+}
+
+async function deleteShoppingItem(itemId) {
+    try {
+        const res = await fetch(`/api/shopping-list/${itemId}`, { method: 'DELETE' });
+        const json = await res.json();
+        if (json.status === 'success') {
+            loadShoppingList();
+            return;
+        }
+    } catch (err) {}
+
+    shoppingItems = shoppingItems.filter(i => i.id !== itemId);
+    renderShoppingList(shoppingItems, shoppingSummary);
+}
+
+async function addManualShoppingItem() {
+    const nameEl = document.getElementById('manual-shopping-name');
+    const amountEl = document.getElementById('manual-shopping-amount');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const amount = amountEl ? amountEl.value.trim() : 'secukupnya';
+
+    if (!name) {
+        alert('Harap masukkan nama bahan yang ingin dibeli.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/shopping-list/items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, amount, category: 'Manual' })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+            if (nameEl) nameEl.value = '';
+            if (amountEl) amountEl.value = '';
+            loadShoppingList();
+            return;
+        }
+    } catch (err) {}
+
+    shoppingItems.unshift({
+        id: Date.now(),
+        name,
+        amount: amount || 'secukupnya',
+        category: 'Manual',
+        bought: false,
+        count: 1,
+        recipes: []
+    });
+    if (nameEl) nameEl.value = '';
+    if (amountEl) amountEl.value = '';
+    renderShoppingList(shoppingItems, shoppingSummary);
+}
+
+async function clearCompletedShopping() {
+    try {
+        const res = await fetch('/api/shopping-list/clear?completed_only=true', { method: 'DELETE' });
+        const json = await res.json();
+        if (json.status === 'success') {
+            loadShoppingList();
+            return;
+        }
+    } catch (err) {}
+
+    shoppingItems = shoppingItems.filter(i => !i.bought);
+    renderShoppingList(shoppingItems, shoppingSummary);
+}
+
+async function clearAllShopping() {
+    if (!confirm('Yakin ingin mengosongkan seluruh daftar belanjaan?')) return;
+    try {
+        const res = await fetch('/api/shopping-list/clear', { method: 'DELETE' });
+        const json = await res.json();
+        if (json.status === 'success') {
+            loadShoppingList();
+            return;
+        }
+    } catch (err) {}
+
+    shoppingItems = [];
+    renderShoppingList(shoppingItems, shoppingSummary);
+}
+

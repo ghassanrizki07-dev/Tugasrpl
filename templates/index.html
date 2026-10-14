@@ -178,25 +178,67 @@
                 </form>
             </section>
 
+            <!-- TAB 5: SHOPPING LIST (Daftar Belanja Bahan Kurang - US-4) -->
+            <section id="shopping-tab" class="tab-content">
+                <div class="section-header">
+                    <h2 class="section-title">🛒 Daftar Belanja Dapur</h2>
+                    <p class="section-subtitle">Kumpulkan bahan yang kurang dan tandai saat berbelanja.</p>
+                </div>
+
+                <!-- Shopping Progress Summary -->
+                <div class="tracker-summary-card" style="margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-size: 13px; font-weight: 700; color: #34d399;">PROGRES BELANJA</span>
+                        <span id="shopping-progress-text" style="font-size: 12px; color: #94a3b8;">0/0 Terbeli (0%)</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="shopping-progress-bar" style="width: 0%; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 14px;">
+                        <button class="btn-action-sm" onclick="clearCompletedShopping()">🧹 Hapus Terbeli</button>
+                        <button class="btn-action-sm danger" onclick="clearAllShopping()">🗑️ Kosongkan</button>
+                    </div>
+                </div>
+
+                <!-- Quick Add Item Form -->
+                <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 16px;">
+                    <div style="font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-main);">➕ Tambah Belanjaan Manual</div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <input type="text" id="manual-shopping-name" placeholder="Nama bahan (misal: Kecap Manis)" style="flex: 2; min-width: 150px; padding: 10px 12px; background: rgba(15,23,42,0.6); border: 1px solid var(--card-border); border-radius: 10px; color: var(--text-main); font-size: 13px;">
+                        <input type="text" id="manual-shopping-amount" placeholder="Kuantitas (misal: 1 botol)" style="flex: 1; min-width: 90px; padding: 10px 12px; background: rgba(15,23,42,0.6); border: 1px solid var(--card-border); border-radius: 10px; color: var(--text-main); font-size: 13px;">
+                        <button class="btn-primary" onclick="addManualShoppingItem()" style="padding: 10px 14px; border-radius: 10px;">Tambah</button>
+                    </div>
+                </div>
+
+                <!-- Shopping Items List Container -->
+                <div id="shopping-items-container">
+                    <!-- Rendered via JavaScript -->
+                </div>
+            </section>
+
         </main>
 
         <!-- Bottom Navigation Tabs Bar -->
         <nav class="bottom-nav">
             <button class="nav-item active" data-tab="pantry-tab">
                 <span class="nav-icon">🧺</span>
-                <span>My Pantry<span class="nav-badge" id="nav-pantry-badge">0</span></span>
+                <span>Pantry<span class="nav-badge" id="nav-pantry-badge">0</span></span>
             </button>
             <button class="nav-item" data-tab="recipes-tab">
                 <span class="nav-icon">🍳</span>
-                <span>Resep Match</span>
+                <span>Resep</span>
             </button>
             <button class="nav-item" data-tab="tracker-tab">
                 <span class="nav-icon">📊</span>
-                <span>NutriTracker</span>
+                <span>Tracker</span>
             </button>
             <button class="nav-item" data-tab="profile-tab">
                 <span class="nav-icon">👤</span>
-                <span>BMR / Profil</span>
+                <span>BMR</span>
+            </button>
+            <button class="nav-item" data-tab="shopping-tab">
+                <span class="nav-icon">🛒</span>
+                <span>Belanja<span class="nav-badge" id="nav-shopping-badge">0</span></span>
             </button>
         </nav>
 

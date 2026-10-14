@@ -687,3 +687,118 @@ body {
     border-radius: 50%;
     cursor: pointer;
 }
+
+/* ==========================================
+   US-4 SHOPPING LIST STYLES
+   ========================================== */
+.shopping-item-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+}
+
+.shopping-item-card:hover {
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.shopping-item-card.bought {
+    opacity: 0.55;
+    background: rgba(15, 23, 42, 0.5);
+    border-color: rgba(255, 255, 255, 0.04);
+}
+
+.shopping-item-card.bought .item-title {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+.shopping-item-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.shopping-checkbox {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.item-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.item-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.item-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+.btn-action-sm {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--card-border);
+    color: var(--text-main);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-action-sm:hover {
+    background: rgba(51, 65, 85, 0.8);
+}
+
+.btn-action-sm.danger {
+    color: var(--accent-red);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.btn-action-sm.danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.btn-shop-recipe {
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #60a5fa;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-shop-recipe:hover {
+    background: rgba(59, 130, 246, 0.25);
+    transform: translateY(-1px);
+}
+
