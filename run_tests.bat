@@ -3,7 +3,7 @@
 cd /d "%~dp0"
 
 echo ===================================================
-echo   Menjalankan Unit Test CookFit (Pertemuan 5)
+echo   Menjalankan Seluruh Unit Test CookFit (Pertemuan 5 & 6)
 echo ===================================================
 python -m unittest discover -s tests -v
 echo.
