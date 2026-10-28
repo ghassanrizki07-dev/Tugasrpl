@@ -5,14 +5,16 @@ let allIngredientsCategorized = {};
 let currentRecipes = [];
 let dailyLogs = [];
 let userProfile = {
-    name: 'Pengguna CookFit',
+    name: '',
     gender: 'male',
-    weight: 65,
-    height: 170,
-    age: 22,
+    weight: 0,
+    height: 0,
+    age: 0,
     activity_level: 1.375,
-    bmr: 1605,
-    tdee: 2206
+    bmr: 0,
+    tdee: 0,
+    goal: 'maintain',
+    daily_calorie_target: 0
 };
 
 // Mock data fallback jika offline / standalone
@@ -25,8 +27,15 @@ const FALLBACK_INGREDIENTS = {
     "Sayuran & Bumbu": [
         {"id": 4, "name": "Kangkung", "calories_per_100g": 19},
         {"id": 5, "name": "Bawang Merah & Putih", "calories_per_100g": 40},
-        {"id": 6, "name": "Cabai Red", "calories_per_100g": 40}
+        {"id": 6, "name": "Cabai Merah", "calories_per_100g": 40}
     ]
+};
+
+const OPTIONAL_RECIPE_INGREDIENTS = {
+    'tuna kaleng': { id: 7, name: 'Tuna Kaleng', category: 'Protein & Daging', calories_per_100g: 116 },
+    'edamame': { id: 8, name: 'Edamame', category: 'Protein & Daging', calories_per_100g: 121 },
+    'brokoli': { id: 9, name: 'Brokoli', category: 'Sayuran & Bumbu', calories_per_100g: 34 },
+    'timun': { id: 10, name: 'Timun', category: 'Sayuran & Bumbu', calories_per_100g: 15 }
 };
 
 const FALLBACK_RECIPES = [
@@ -82,17 +91,189 @@ const FALLBACK_RECIPES = [
             {"name": "Bawang & Cabai", "amount": "secukupnya", "calories": 60}
         ],
         "instructions": "1. Potong dada ayam dadu kecil.\n2. Tumis bawang dan cabai hingga wangi.\n3. Masukkan potongan dada ayam, masak hingga matang dan bumbu meresap."
+    },
+    {
+        "id": 4,
+        "title": "Ayam Panggang Bawang Putih Tinggi Protein",
+        "image_icon": "🍗",
+        "prep_time": 30,
+        "servings": 1,
+        "total_calories": 340,
+        "total_protein": 62,
+        "total_carbs": 4,
+        "total_fat": 8,
+        "required_ids": [2, 5, 6],
+        "ingredients": [
+            {"name": "Dada Ayam", "amount": "200 gram", "calories": 330},
+            {"name": "Bawang Merah & Putih", "amount": "secukupnya", "calories": 10},
+            {"name": "Cabai Merah", "amount": "secukupnya", "calories": 5}
+        ],
+        "instructions": "1. Lumuri dada ayam dengan bawang putih, cabai, garam, dan lada.\n2. Diamkan selama 10 menit agar bumbu meresap.\n3. Panggang di oven atau teflon anti lengket hingga matang merata."
+    },
+    {
+        "id": 5,
+        "title": "Tahu Ayam Kukus Tinggi Protein",
+        "image_icon": "🍲",
+        "prep_time": 25,
+        "servings": 1,
+        "total_calories": 330,
+        "total_protein": 55,
+        "total_carbs": 8,
+        "total_fat": 12,
+        "required_ids": [2, 3, 5],
+        "ingredients": [
+            {"name": "Dada Ayam", "amount": "150 gram", "calories": 248},
+            {"name": "Tahu Putih", "amount": "100 gram", "calories": 76},
+            {"name": "Bawang Merah & Putih", "amount": "secukupnya", "calories": 6}
+        ],
+        "instructions": "1. Cincang dada ayam dan haluskan tahu, lalu campurkan dengan bawang putih dan bumbu secukupnya.\n2. Bentuk adonan menjadi beberapa bagian.\n3. Kukus selama 15–20 menit hingga ayam matang."
+    },
+    {
+        "id": 6,
+        "title": "Omelet Dada Ayam Tinggi Protein",
+        "image_icon": "🍳",
+        "prep_time": 20,
+        "servings": 1,
+        "total_calories": 310,
+        "total_protein": 44,
+        "total_carbs": 3,
+        "total_fat": 14,
+        "required_ids": [1, 2, 5],
+        "ingredients": [
+            {"name": "Dada Ayam", "amount": "100 gram", "calories": 165},
+            {"name": "Telur Ayam", "amount": "2 butir", "calories": 140},
+            {"name": "Bawang Merah & Putih", "amount": "secukupnya", "calories": 5}
+        ],
+        "instructions": "1. Potong dada ayam kecil-kecil dan masak hingga matang.\n2. Kocok telur bersama bawang cincang dan sedikit garam.\n3. Tuangkan telur ke ayam, lalu masak di teflon anti lengket hingga omelet matang."
+    },
+    {
+        "id": 7,
+        "title": "Tuna Brokoli Tumis Tinggi Protein",
+        "image_icon": "🐟",
+        "prep_time": 15,
+        "servings": 1,
+        "total_calories": 225,
+        "total_protein": 41,
+        "total_carbs": 12,
+        "total_fat": 3,
+        "required_ids": [7, 9, 5],
+        "ingredients": [
+            {"name": "Tuna Kaleng", "amount": "150 gram", "calories": 174},
+            {"name": "Brokoli", "amount": "100 gram", "calories": 34},
+            {"name": "Bawang Merah & Putih", "amount": "secukupnya", "calories": 17}
+        ],
+        "instructions": "1. Tiriskan tuna dan potong brokoli menjadi bagian kecil.\n2. Tumis bawang dengan sedikit air, lalu masukkan brokoli hingga empuk.\n3. Masukkan tuna, aduk hingga panas dan sajikan."
+    },
+    {
+        "id": 8,
+        "title": "Bowl Edamame Tahu dan Brokoli",
+        "image_icon": "🥗",
+        "prep_time": 20,
+        "servings": 1,
+        "total_calories": 245,
+        "total_protein": 24,
+        "total_carbs": 20,
+        "total_fat": 10,
+        "required_ids": [8, 3, 9],
+        "ingredients": [
+            {"name": "Edamame", "amount": "100 gram", "calories": 121},
+            {"name": "Tahu Putih", "amount": "100 gram", "calories": 76},
+            {"name": "Brokoli", "amount": "100 gram", "calories": 34}
+        ],
+        "instructions": "1. Rebus edamame dan brokoli hingga matang.\n2. Potong tahu, lalu kukus atau panggang hingga hangat.\n3. Sajikan tahu bersama edamame dan brokoli."
+    },
+    {
+        "id": 9,
+        "title": "Salad Tuna Telur dan Timun",
+        "image_icon": "🥚",
+        "prep_time": 15,
+        "servings": 1,
+        "total_calories": 235,
+        "total_protein": 33,
+        "total_carbs": 5,
+        "total_fat": 9,
+        "required_ids": [7, 1, 10],
+        "ingredients": [
+            {"name": "Tuna Kaleng", "amount": "100 gram", "calories": 116},
+            {"name": "Telur Ayam", "amount": "1 butir", "calories": 78},
+            {"name": "Timun", "amount": "100 gram", "calories": 15}
+        ],
+        "instructions": "1. Rebus telur hingga matang dan tiriskan tuna.\n2. Iris telur dan timun.\n3. Campurkan dengan tuna, bumbui lada dan sedikit garam, lalu sajikan."
     }
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
+    loadCurrentUser();
     initNavigation();
     loadIngredients();
     loadDailyLogs();
-    loadShoppingList();
+    renderIngredientsSummaryList();
     updateTrackerUI();
     updateProfileUI();
 });
+
+// ==========================================
+// AUTH - CURRENT USER & LOGOUT
+// ==========================================
+async function loadCurrentUser() {
+    try {
+        const res = await fetch('/api/auth/me');
+        const json = await res.json();
+        if (json.status === 'success' && json.data) {
+            const user = json.data;
+            const avatar = document.getElementById('user-avatar');
+            const displayName = user.display_name || user.username || '';
+            if (avatar) {
+                avatar.textContent = (displayName || '?')[0].toUpperCase();
+                avatar.title = displayName;
+            }
+            // Sinkronkan profil akun dari database secara terisolasi per user
+            userProfile.name = displayName;
+            userProfile.gender = user.gender || 'male';
+            userProfile.weight = Number(user.weight) || 0;
+            userProfile.height = Number(user.height) || 0;
+            userProfile.age = Number(user.age) || 0;
+            userProfile.activity_level = Number(user.activity_level) || 1.375;
+            userProfile.bmr = Number(user.bmr) || 0;
+            userProfile.tdee = Number(user.tdee) || 0;
+            userProfile.goal = user.goal || 'maintain';
+            userProfile.daily_calorie_target = calculateDailyCalorieTarget(
+                userProfile.tdee, userProfile.bmr, userProfile.goal
+            );
+
+            // Update form fields profil
+            const nameEl = document.getElementById('prof-name');
+            const genderEl = document.getElementById('prof-gender');
+            const weightEl = document.getElementById('prof-weight');
+            const heightEl = document.getElementById('prof-height');
+            const ageEl = document.getElementById('prof-age');
+            const activityEl = document.getElementById('prof-activity');
+            const goalEl = document.getElementById('prof-goal');
+
+            if (nameEl) nameEl.value = userProfile.name;
+            if (genderEl) genderEl.value = userProfile.gender;
+            if (weightEl) weightEl.value = userProfile.weight > 0 ? userProfile.weight : '';
+            if (heightEl) heightEl.value = userProfile.height > 0 ? userProfile.height : '';
+            if (ageEl) ageEl.value = userProfile.age > 0 ? userProfile.age : '';
+            if (activityEl) activityEl.value = userProfile.activity_level;
+            if (goalEl) goalEl.value = userProfile.goal;
+
+            updateProfileUI();
+            updateTrackerUI();
+        }
+    } catch (err) {
+        console.warn('Gagal memuat data user:', err);
+    }
+}
+
+async function handleLogout() {
+    if (!confirm('Yakin ingin keluar dari CookFit?')) return;
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {}
+    window.location.href = '/login';
+}
+
 
 // ==========================================
 // NAVIGATION SYSTEM
@@ -125,7 +306,7 @@ function switchToTab(targetTab) {
     if (targetTab === 'recipes-tab') {
         triggerRecipeMatching();
     } else if (targetTab === 'shopping-tab') {
-        loadShoppingList();
+        renderIngredientsSummaryList();
     }
 }
 
@@ -146,6 +327,7 @@ async function loadIngredients() {
         allIngredientsCategorized = FALLBACK_INGREDIENTS;
     }
     renderPantryGrid();
+    renderIngredientsSummaryList();
 }
 
 function renderPantryGrid(filterText = '') {
@@ -259,10 +441,16 @@ function calculateClientSideMatching() {
             if (selSet.has(id)) {
                 matchCount++;
             } else {
-                // cari nama
+                const optionalIngredient = Object.values(OPTIONAL_RECIPE_INGREDIENTS)
+                    .find(ingredient => ingredient.id === id);
+                if (optionalIngredient) {
+                    missing.push({ name: optionalIngredient.name });
+                }
                 for (const items of Object.values(FALLBACK_INGREDIENTS)) {
                     const found = items.find(i => i.id === id);
-                    if (found) missing.push({ name: found.name });
+                    if (found && !missing.some(item => item.name === found.name)) {
+                        missing.push({ name: found.name });
+                    }
                 }
             }
         });
@@ -298,11 +486,13 @@ function renderRecipeList(recipes) {
         const card = document.createElement('div');
         card.className = 'recipe-card';
         card.innerHTML = `
-            <div class="match-badge ${badgeClass}">${r.match_score}% Match</div>
             <div class="recipe-header">
                 <div class="recipe-icon">${r.image_icon}</div>
                 <div class="recipe-info">
-                    <div class="recipe-title">${r.title}</div>
+                    <div class="recipe-title-row">
+                        <div class="recipe-title">${r.title}</div>
+                        <div class="match-badge ${badgeClass}">${r.match_score}% Match</div>
+                    </div>
                     <div class="recipe-meta">
                         <span>⏱️ ${r.prep_time} mnt</span> • <span>🍽️ ${r.servings} Porsi</span>
                     </div>
@@ -329,10 +519,13 @@ function renderRecipeList(recipes) {
 
             <div class="recipe-actions">
                 <button class="btn-secondary" onclick="viewRecipeDetail(${r.id})">📖 Panduan</button>
-                <button class="btn-outline-primary" onclick="logRecipeToTracker('${r.title.replace(/'/g, "\\'")}', ${r.total_calories}, ${r.total_protein}, ${r.total_carbs}, ${r.total_fat})">+ Log Makan</button>
-                ${r.missing_ingredients && r.missing_ingredients.length > 0 ? `
-                    <button class="btn-shop-recipe" onclick="addMissingToShopping(${r.id})">🛒 Beli Bahan</button>
-                ` : ''}
+                <button
+                    class="btn-outline-primary"
+                    onclick="logRecipeToTracker(${r.id})"
+                    ${r.missing_ingredients && r.missing_ingredients.length > 0
+                        ? 'disabled title="Lengkapi semua bahan di Pantry sebelum mencatat resep ini." style="opacity:0.5; cursor:not-allowed;"'
+                        : ''}
+                >+ Log Makan</button>
             </div>
         `;
 
@@ -377,14 +570,28 @@ async function loadDailyLogs() {
     updateTrackerUI();
 }
 
-async function logRecipeToTracker(title, calories, protein, carbs, fat) {
+async function logRecipeToTracker(recipeId) {
+    const recipe = currentRecipes.find(item => item.id === recipeId)
+        || FALLBACK_RECIPES.find(item => item.id === recipeId);
+    if (!recipe) {
+        alert('Resep tidak ditemukan. Silakan muat ulang daftar resep.');
+        return;
+    }
+
+    if (recipe.missing_ingredients && recipe.missing_ingredients.length > 0) {
+        alert('Lengkapi semua bahan resep di Pantry sebelum mencatatnya ke Log Makan.');
+        return;
+    }
+
     const payload = {
-        recipe_title: title,
+        recipe_id: recipe.id,
+        ingredient_ids: Array.from(selectedIngredients),
+        recipe_title: recipe.title,
         meal_type: 'Makan Siang',
-        calories: calories,
-        protein: protein,
-        carbs: carbs,
-        fat: fat
+        calories: recipe.total_calories,
+        protein: recipe.total_protein,
+        carbs: recipe.total_carbs,
+        fat: recipe.total_fat
     };
 
     try {
@@ -396,11 +603,13 @@ async function logRecipeToTracker(title, calories, protein, carbs, fat) {
         const json = await res.json();
         if (json.status === 'success') {
             await loadDailyLogs();
-            alert(`✅ "${title}" berhasil ditambahkan ke NutriTracker!`);
+            alert(`✅ "${recipe.title}" berhasil ditambahkan ke NutriTracker!`);
             return;
         }
+        alert('Gagal mencatat resep: ' + (json.message || 'Terjadi kesalahan.'));
+        return;
     } catch (err) {
-        // Fallback client side
+        console.warn('Gagal menghubungi backend saat mencatat resep:', err);
     }
 
     const fallbackLog = {
@@ -408,7 +617,7 @@ async function logRecipeToTracker(title, calories, protein, carbs, fat) {
         ...payload
     };
     dailyLogs.unshift(fallbackLog);
-    alert(`✅ "${title}" berhasil ditambahkan ke NutriTracker!`);
+    alert(`✅ "${recipe.title}" berhasil ditambahkan ke NutriTracker!`);
     updateTrackerUI();
 }
 
@@ -437,15 +646,15 @@ function updateTrackerUI() {
         totF += l.fat;
     });
 
-    const targetTdee = userProfile.tdee;
-    const percentage = Math.min(Math.round((totCal / targetTdee) * 100), 100);
+    const targetTdee = userProfile.daily_calorie_target || userProfile.tdee || 0;
+    const percentage = targetTdee > 0 ? Math.min(Math.round((totCal / targetTdee) * 100), 100) : 0;
 
     const cVal = document.getElementById('current-calories-val');
     const tVal = document.getElementById('target-tdee-val');
     const bar = document.getElementById('progress-bar-fill');
 
     if (cVal) cVal.textContent = totCal;
-    if (tVal) tVal.textContent = targetTdee;
+    if (tVal) tVal.textContent = targetTdee > 0 ? targetTdee : 0;
     if (bar) bar.style.width = `${percentage}%`;
 
     const mP = document.getElementById('macro-protein');
@@ -492,30 +701,46 @@ function renderLogList() {
 function updateProfileUI() {
     const bmrEl = document.getElementById('disp-bmr');
     const tdeeEl = document.getElementById('disp-tdee');
-    if (bmrEl) bmrEl.textContent = `${userProfile.bmr} kcal`;
-    if (tdeeEl) tdeeEl.textContent = `${userProfile.tdee} kcal`;
+    const targetEl = document.getElementById('disp-daily-calorie-target');
+    if (bmrEl) bmrEl.textContent = `${userProfile.bmr || 0} kcal`;
+    if (tdeeEl) tdeeEl.textContent = `${userProfile.tdee || 0} kcal`;
+    if (targetEl) targetEl.textContent = `${userProfile.daily_calorie_target || userProfile.tdee || 0} kcal`;
+}
+
+function calculateDailyCalorieTarget(tdee, bmr, goal) {
+    if (goal === 'cutting') return Math.max(bmr, tdee - 300);
+    if (goal === 'bulking') return tdee + 300;
+    return tdee;
 }
 
 async function saveProfile(e) {
     e.preventDefault();
 
-    const name = document.getElementById('prof-name').value;
+    const name = document.getElementById('prof-name').value.trim();
     const gender = document.getElementById('prof-gender').value;
-    const weight = parseFloat(document.getElementById('prof-weight').value) || 60;
-    const height = parseFloat(document.getElementById('prof-height').value) || 165;
-    const age = parseInt(document.getElementById('prof-age').value) || 20;
+    const weight = parseFloat(document.getElementById('prof-weight').value);
+    const height = parseFloat(document.getElementById('prof-height').value);
+    const age = parseInt(document.getElementById('prof-age').value);
     const activity = parseFloat(document.getElementById('prof-activity').value) || 1.375;
+    const goal = document.getElementById('prof-goal').value;
+
+    if (!weight || weight <= 0 || !height || height <= 0 || !age || age <= 0) {
+        alert('Harap isi Berat Badan, Tinggi Badan, dan Usia yang valid (lebih dari 0).');
+        return;
+    }
 
     try {
         const res = await fetch('/api/calculate-bmr', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                name,
                 gender,
                 weight,
                 height,
                 age,
-                activity_level: activity
+                activity_level: activity,
+                goal
             })
         });
         const json = await res.json();
@@ -529,15 +754,27 @@ async function saveProfile(e) {
                 activity_level: activity,
                 bmr: json.data.bmr,
                 tdee: json.data.tdee,
+                goal: json.data.goal,
+                daily_calorie_target: json.data.daily_calorie_target,
                 target_macros: json.data.target_macros
             };
+
+            const avatar = document.getElementById('user-avatar');
+            if (avatar && name) {
+                avatar.textContent = name[0].toUpperCase();
+                avatar.title = name;
+            }
+
             updateProfileUI();
             updateTrackerUI();
-            alert('✅ Profil & Target TDEE Harian Berhasil Dihitung oleh Backend!');
+            alert('✅ Profil, BMR, dan target kalori harian berhasil disimpan!');
+            return;
+        } else {
+            alert('Gagal: ' + (json.message || 'Terjadi kesalahan kalkulasi.'));
             return;
         }
     } catch (err) {
-        // Fallback local formula
+        console.warn('Gagal menghubungi backend:', err);
     }
 
     let bmr = 0;
@@ -550,232 +787,185 @@ async function saveProfile(e) {
     const tdee = Math.round(bmr * activity);
     bmr = Math.round(bmr);
 
-    userProfile = { name, gender, weight, height, age, activity_level: activity, bmr, tdee };
+    const dailyCalorieTarget = calculateDailyCalorieTarget(tdee, bmr, goal);
+    userProfile = {
+        name, gender, weight, height, age, activity_level: activity,
+        bmr, tdee, goal, daily_calorie_target: dailyCalorieTarget
+    };
 
     updateProfileUI();
     updateTrackerUI();
-    alert('✅ Profil & Target TDEE Harian Berhasil Diperbarui!');
+    alert('✅ Profil dan target kalori harian berhasil diperbarui!');
 }
 
 // ==========================================
-// US-4: SHOPPING LIST LOGIC
+// TAMBAH BAHAN MAKANAN KE PANTRY
 // ==========================================
-let shoppingItems = [];
-let shoppingSummary = { total_items: 0, bought_count: 0, pending_count: 0, completion_percentage: 0 };
+async function handleAddNewIngredient(e) {
+    e.preventDefault();
 
-async function loadShoppingList() {
-    try {
-        const res = await fetch('/api/shopping-list');
-        const json = await res.json();
-        if (json.status === 'success') {
-            shoppingItems = json.data.items || [];
-            shoppingSummary = json.data.summary || {};
-            renderShoppingList(shoppingItems, shoppingSummary);
-            return;
-        }
-    } catch (err) {
-        console.warn('Gagal memuat daftar belanja dari backend:', err);
-    }
-    renderShoppingList(shoppingItems, shoppingSummary);
-}
+    const nameInput = document.getElementById('manual-ingredient-name');
+    const catSelect = document.getElementById('manual-ingredient-category');
+    const calInput = document.getElementById('manual-ingredient-calories');
 
-function renderShoppingList(items, summary) {
-    const container = document.getElementById('shopping-items-container');
-    const badge = document.getElementById('nav-shopping-badge');
-    const progText = document.getElementById('shopping-progress-text');
-    const progBar = document.getElementById('shopping-progress-bar');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const category = catSelect ? catSelect.value : 'Sayuran & Bumbu';
+    const calories = calInput ? (parseInt(calInput.value) || 50) : 50;
 
-    const total = summary.total_items || items.length;
-    const bought = summary.bought_count || items.filter(i => i.bought).length;
-    const pct = summary.completion_percentage || (total > 0 ? Math.round((bought / total) * 100) : 0);
-
-    if (badge) badge.textContent = total - bought;
-    if (progText) progText.textContent = `${bought}/${total} Terbeli (${pct}%)`;
-    if (progBar) progBar.style.width = `${pct}%`;
-
-    if (!container) return;
-    container.innerHTML = '';
-
-    if (!items || items.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: var(--text-muted); background: var(--card-bg); border-radius: 14px; border: 1px dashed var(--card-border);">
-                <div style="font-size: 32px; margin-bottom: 8px;">🛒</div>
-                <div style="font-size: 14px; font-weight: 600; color: var(--text-main);">Daftar Belanja Masih Kosong</div>
-                <div style="font-size: 12px; margin-top: 4px;">Pilih resep di tab "Resep Match" lalu klik "Beli Bahan", atau tambahkan manual di atas.</div>
-            </div>
-        `;
-        return;
-    }
-
-    items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = `shopping-item-card ${item.bought ? 'bought' : ''}`;
-        card.innerHTML = `
-            <div class="shopping-item-left">
-                <input type="checkbox" class="shopping-checkbox" ${item.bought ? 'checked' : ''} onchange="toggleShoppingItem(${item.id})">
-                <div>
-                    <div class="item-title">
-                        ${item.name}
-                        ${item.count > 1 ? `<span class="item-badge">x${item.count}</span>` : ''}
-                    </div>
-                    <div class="item-meta">
-                        <span>📦 ${item.amount}</span> • <span style="color: #60a5fa;">${item.category}</span>
-                        ${item.recipes && item.recipes.length > 0 ? ` • <span style="color: #fbbf24;">Resep: ${item.recipes.join(', ')}</span>` : ''}
-                    </div>
-                </div>
-            </div>
-            <div>
-                <button class="btn-del" onclick="deleteShoppingItem(${item.id})" title="Hapus dari daftar belanja">✕</button>
-            </div>
-        `;
-        container.appendChild(card);
-    });
-}
-
-async function addMissingToShopping(recipeId) {
-    const r = currentRecipes.find(item => item.id === recipeId) || FALLBACK_RECIPES.find(item => item.id === recipeId);
-    if (!r || !r.missing_ingredients || r.missing_ingredients.length === 0) {
-        alert('Semua bahan untuk resep ini sudah lengkap di dapur Anda!');
+    if (!name) {
+        alert('Harap masukkan nama bahan makanan.');
         return;
     }
 
     try {
-        const res = await fetch('/api/shopping-list/generate', {
+        const res = await fetch('/api/ingredients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                recipe_title: r.title,
-                missing_ingredients: r.missing_ingredients
+                name,
+                category,
+                calories_per_100g: calories
             })
         });
         const json = await res.json();
         if (json.status === 'success') {
-            alert(`✅ ${json.message}`);
-            switchToTab('shopping-tab');
+            const newItem = json.data;
+            const itemCategory = json.category || category;
+
+            if (!allIngredientsCategorized[itemCategory]) {
+                allIngredientsCategorized[itemCategory] = [];
+            }
+            const exists = allIngredientsCategorized[itemCategory].some(i => i.id === newItem.id);
+            if (!exists) {
+                allIngredientsCategorized[itemCategory].push(newItem);
+            }
+
+            // Otomatis tandai/centang bahan baru ini di Pantry agar siap dicocokkan resep
+            selectedIngredients.add(newItem.id);
+
+            // Re-render Pantry & Ringkasan Bahan
+            renderPantryGrid();
+            updateSelectedCountBadge();
+            renderIngredientsSummaryList();
+
+            // Reset input form
+            if (nameInput) nameInput.value = '';
+            if (calInput) calInput.value = '50';
+
+            alert(`✅ Bahan "${name}" berhasil ditambahkan ke kategori "${itemCategory}" di Pantry kulkas Anda!`);
+            return;
+        } else {
+            alert('Gagal: ' + (json.message || 'Terjadi kesalahan'));
             return;
         }
     } catch (err) {
-        console.warn('Backend offline, fallback lokal');
+        console.warn('Backend request failed, fallback lokal:', err);
     }
 
-    // Fallback lokal
-    r.missing_ingredients.forEach(m => {
-        const existing = shoppingItems.find(i => i.name.toLowerCase() === m.name.toLowerCase());
-        if (existing) {
-            existing.count += 1;
-        } else {
-            shoppingItems.push({
-                id: Date.now() + Math.random(),
-                name: m.name,
-                category: 'Bahan Dapur',
-                amount: 'secukupnya',
-                bought: false,
-                count: 1,
-                recipes: [r.title]
-            });
-        }
-    });
-    alert(`✅ Bahan kurang untuk "${r.title}" ditambahkan ke daftar belanja!`);
-    switchToTab('shopping-tab');
-}
+    // Fallback lokal jika backend tidak terhubung
+    const optionalIngredient = OPTIONAL_RECIPE_INGREDIENTS[name.toLowerCase()];
+    const itemCategory = optionalIngredient ? optionalIngredient.category : category;
+    const fallbackItem = optionalIngredient
+        ? { ...optionalIngredient }
+        : {
+            id: Math.max(
+                10,
+                ...Object.values(allIngredientsCategorized)
+                    .flat()
+                    .map(ingredient => ingredient.id)
+            ) + 1,
+            name,
+            calories_per_100g: calories
+        };
 
-async function toggleShoppingItem(itemId) {
-    try {
-        const res = await fetch(`/api/shopping-list/${itemId}/toggle`, { method: 'PATCH' });
-        const json = await res.json();
-        if (json.status === 'success') {
-            loadShoppingList();
-            return;
-        }
-    } catch (err) {}
-
-    const item = shoppingItems.find(i => i.id === itemId);
-    if (item) {
-        item.bought = !item.bought;
-        renderShoppingList(shoppingItems, shoppingSummary);
+    if (!allIngredientsCategorized[itemCategory]) {
+        allIngredientsCategorized[itemCategory] = [];
     }
+    if (!allIngredientsCategorized[itemCategory].some(item => item.id === fallbackItem.id)) {
+        allIngredientsCategorized[itemCategory].push(fallbackItem);
+    }
+    selectedIngredients.add(fallbackItem.id);
+
+    renderPantryGrid();
+    updateSelectedCountBadge();
+    renderIngredientsSummaryList();
+
+    if (nameInput) nameInput.value = '';
+    alert(`✅ Bahan "${name}" berhasil ditambahkan ke kategori "${itemCategory}" di Pantry kulkas Anda!`);
 }
 
-async function deleteShoppingItem(itemId) {
-    try {
-        const res = await fetch(`/api/shopping-list/${itemId}`, { method: 'DELETE' });
-        const json = await res.json();
-        if (json.status === 'success') {
-            loadShoppingList();
-            return;
-        }
-    } catch (err) {}
+function renderIngredientsSummaryList() {
+    const container = document.getElementById('all-ingredients-summary-list');
+    if (!container) return;
+    container.innerHTML = '';
 
-    shoppingItems = shoppingItems.filter(i => i.id !== itemId);
-    renderShoppingList(shoppingItems, shoppingSummary);
-}
-
-async function addManualShoppingItem() {
-    const nameEl = document.getElementById('manual-shopping-name');
-    const amountEl = document.getElementById('manual-shopping-amount');
-    const name = nameEl ? nameEl.value.trim() : '';
-    const amount = amountEl ? amountEl.value.trim() : 'secukupnya';
-
-    if (!name) {
-        alert('Harap masukkan nama bahan yang ingin dibeli.');
+    const categories = Object.keys(allIngredientsCategorized);
+    if (categories.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8; font-size:13px;">Belum ada bahan makanan di Pantry.</div>';
         return;
     }
 
+    for (const [category, items] of Object.entries(allIngredientsCategorized)) {
+        if (!items || items.length === 0) continue;
+
+        const isProtein = category.toLowerCase().includes('protein') || category.toLowerCase().includes('daging');
+        const badgeColor = isProtein ? '#ef4444' : '#10b981';
+        const badgeBg = isProtein ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)';
+        const icon = isProtein ? '🥩' : '🥦';
+
+        const catBlock = document.createElement('div');
+        catBlock.style.cssText = 'background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 12px;';
+
+        const itemsHtml = items.map(item => `
+            <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(15,23,42,0.5); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 6px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:14px; color: var(--text-main); font-weight:600;">${item.name}</span>
+                    <span style="font-size:11px; color:#94a3b8;">(${item.calories_per_100g} kcal/100g)</span>
+                </div>
+                <button onclick="handleDeleteIngredient(${item.id}, '${item.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:14px; padding:4px 8px;" title="Hapus bahan">🗑️</button>
+            </div>
+        `).join('');
+
+        catBlock.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+                <span style="font-weight:700; font-size:13px; color: ${badgeColor}; display:flex; align-items:center; gap:6px;">
+                    <span>${icon}</span> ${category}
+                </span>
+                <span style="font-size:11px; background:${badgeBg}; color:${badgeColor}; padding:2px 8px; border-radius:20px; font-weight:600;">
+                    ${items.length} bahan
+                </span>
+            </div>
+            <div>
+                ${itemsHtml}
+            </div>
+        `;
+        container.appendChild(catBlock);
+    }
+}
+
+async function handleDeleteIngredient(id, name) {
+    if (!confirm(`Hapus "${name}" dari Pantry kulkas?`)) return;
+
     try {
-        const res = await fetch('/api/shopping-list/items', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, amount, category: 'Manual' })
-        });
+        const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE' });
         const json = await res.json();
         if (json.status === 'success') {
-            if (nameEl) nameEl.value = '';
-            if (amountEl) amountEl.value = '';
-            loadShoppingList();
+            for (const cat in allIngredientsCategorized) {
+                allIngredientsCategorized[cat] = allIngredientsCategorized[cat].filter(i => i.id !== id);
+            }
+            selectedIngredients.delete(id);
+            renderPantryGrid();
+            updateSelectedCountBadge();
+            renderIngredientsSummaryList();
             return;
         }
     } catch (err) {}
 
-    shoppingItems.unshift({
-        id: Date.now(),
-        name,
-        amount: amount || 'secukupnya',
-        category: 'Manual',
-        bought: false,
-        count: 1,
-        recipes: []
-    });
-    if (nameEl) nameEl.value = '';
-    if (amountEl) amountEl.value = '';
-    renderShoppingList(shoppingItems, shoppingSummary);
+    for (const cat in allIngredientsCategorized) {
+        allIngredientsCategorized[cat] = allIngredientsCategorized[cat].filter(i => i.id !== id);
+    }
+    selectedIngredients.delete(id);
+    renderPantryGrid();
+    updateSelectedCountBadge();
+    renderIngredientsSummaryList();
 }
-
-async function clearCompletedShopping() {
-    try {
-        const res = await fetch('/api/shopping-list/clear?completed_only=true', { method: 'DELETE' });
-        const json = await res.json();
-        if (json.status === 'success') {
-            loadShoppingList();
-            return;
-        }
-    } catch (err) {}
-
-    shoppingItems = shoppingItems.filter(i => !i.bought);
-    renderShoppingList(shoppingItems, shoppingSummary);
-}
-
-async function clearAllShopping() {
-    if (!confirm('Yakin ingin mengosongkan seluruh daftar belanjaan?')) return;
-    try {
-        const res = await fetch('/api/shopping-list/clear', { method: 'DELETE' });
-        const json = await res.json();
-        if (json.status === 'success') {
-            loadShoppingList();
-            return;
-        }
-    } catch (err) {}
-
-    shoppingItems = [];
-    renderShoppingList(shoppingItems, shoppingSummary);
-}
-

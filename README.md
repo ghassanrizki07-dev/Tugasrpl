@@ -71,9 +71,11 @@ Masalah sehari-hari di rumah atau tempat kos sering kali berkisar pada dua hal: 
 | :--- | :--- | :--- |
 | **Bahan Dapur (My Pantry)** | *Pilih Bahan Saat Ini* | Memilih bahan yang ada di kulkas/dapur melalui daftar centang (*checklist*) cepat. |
 | **Pencari Resep (Recipe Matcher)** | *Smart Recipe Recommendation* | Menampilkan resep masakan yang diurutkan berdasarkan persentase kecocokan bahan terbanyak. |
+| | *Resep Tinggi Protein* | Menyediakan pilihan resep ayam, tahu, telur, tuna, dan edamame dengan estimasi protein per porsi. Bahan resep yang belum tersedia tidak otomatis masuk Pantry; tambahkan melalui menu **+ Bahan** agar dapat dicocokkan. |
 | | *Missing Ingredient Alert* | Penanda bahan apa saja yang kurang jika ingin memasak resep tertentu. |
 | **Nutrisi & Kalori (NutriTracker)** | *Recipe Calorie Calculator* | Menampilkan estimasi Total Kalori, Protein, Karbohidrat, dan Lemak per porsi resep. |
-| | *Daily Calorie Log* | Menambahkan masakan ke jurnal makan harian dan membandingkannya dengan batas target kalori harian ($TDEE$). |
+| | *Daily Calorie Log* | Resep hanya dapat dicatat jika semua bahannya tersedia dan telah dipilih. |
+| **Bahan Dapur (My Pantry)** | *Tambah Bahan* | Mengelola bahan pantry melalui menu khusus, terpisah dari kartu rekomendasi resep. |
 
 ---
 
@@ -126,63 +128,73 @@ $$BMR = (10 \times \text{BB}) + (6.25 \times \text{TB}) - (5 \times \text{Usia})
 
 *(Keterangan: BB dalam kg, TB dalam cm, dan Usia dalam tahun)*
 
+Setelah TDEE dihitung, target kalori harian menyesuaikan tujuan pengguna:
+
+* **Maintain:** target = TDEE.
+* **Cutting:** target = TDEE - 300 kcal, dengan batas minimum sebesar BMR.
+* **Bulking:** target = TDEE + 300 kcal.
+
+Pilihan tujuan disimpan di profil akun dan dipakai sebagai batas target pada NutriTracker.
+
 ---
 
 ## 7. Teknologi yang Digunakan
 
 * **Frontend:** HTML5, CSS3, & JavaScript (Vanilla JS) — Dibuat responsif agar nyaman dibuka di layar HP tanpa perlu *framework* JavaScript yang rumit.
-* **Backend:** PHP (Native / CodeIgniter) **atau** Python (Flask) — Bahasa yang umum, mudah dipelajari, serta cepat untuk pemrosesan logika data dan API.
-* **Database:** MySQL / MariaDB — Digunakan untuk menyimpan data master resep, tabel kalori bahan baku, dan catatan jurnal harian pengguna (dikelola via phpMyAdmin).
+* **Backend:** Python dengan Flask untuk halaman web dan REST API.
+* **Database:** SQLite untuk data akun, dengan katalog resep dan bahan awal yang disediakan aplikasi.
+* **Pengujian:** `unittest` bawaan Python untuk unit dan API tests.
 
 ---
 
 ## 8. Struktur Direktori Proyek
 
 ```text
-cookfit/
-├── config/                  # Konfigurasi Koneksi Database MySQL
-│   └── database.php / db.py
-├── controllers/             # Logic Backend & Pemroses Data
-│   ├── RecipeController     # Algoritma Pencocokan Resep
-│   └── CalorieController    # Algoritma Kalkulasi Gizi & Kalori
-├── assets/                  # File Statis Frontend
-│   ├── css/                 # Custom Styling CSS
-│   ├── js/                  # JavaScript Interaktif (Filter & Calculator)
-│   └── img/                 # Gambar Resep & Ikon Bahan
-├── views/                   # Tampilan Antarmuka Web
-│   ├── index.php / .html    # Halaman Utama Pilih Bahan (Mobile View)
-│   ├── resep.php / .html    # Halaman Rekomendasi Resep
-│   └── tracker.php / .html  # Halaman Catatan Kalori Harian
-├── database/
-│   └── db_cookfit.sql       # File Import Database MySQL
-└── index.php / app.py       # Entry point utama aplikasi
+Tugasrpl/
+├── app.py                   # Flask application dan REST API
+├── services/                # Layanan auth, resep, kalori, pantry, dan tracker
+├── templates/               # Halaman HTML
+├── static/                  # CSS dan JavaScript
+├── tests/                   # Unit dan API tests
+├── requirements.txt         # Dependensi Python
+└── cookfit.db               # Database SQLite lokal (dibuat saat aplikasi dijalankan)
 ```
 
 ---
 
 ## 9. Panduan Instalasi & Menjalankan
 
-### Prasyarat Sistem
-* XAMPP / Laragon (Untuk PHP & MySQL) **atau** Python 3.x
-* Web Browser (Google Chrome / Edge)
+### Prasyarat
+* Python 3.9 atau yang lebih baru
 
-### Langkah 1: Clone / Download Repositori
-Letakkan folder proyek di direktori `htdocs` (jika menggunakan XAMPP) atau `www` (jika menggunakan Laragon).
+### Instalasi
 ```bash
-C:/xampp/htdocs/cookfit
+git clone https://github.com/ghassanrizki07-dev/Tugasrpl.git
+cd Tugasrpl
+python -m venv .venv
 ```
 
-### Langkah 2: Import Database MySQL
-1. Buka browser dan akses `http://localhost/phpmyadmin`.
-2. Buat database baru dengan nama `db_cookfit`.
-3. Import file `db_cookfit.sql` yang berada di dalam folder `database/`.
+Aktifkan virtual environment, lalu pasang dependensi:
 
-### Langkah 3: Menjalankan Aplikasi
-1. Pastikan module **Apache** dan **MySQL** di XAMPP/Laragon sudah dalam status **Start**.
-2. Buka browser di HP/Laptop dan akses alamat:
-   ```text
-   http://localhost/cookfit
-   ```
+```bash
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### Menjalankan aplikasi
+```bash
+python app.py
+```
+
+Buka `http://127.0.0.1:5000` di browser. Database SQLite lokal dibuat otomatis saat aplikasi berjalan dan tidak perlu di-commit.
+
+Untuk lingkungan yang membutuhkan sesi login tetap valid setelah server dimulai ulang, atur variabel lingkungan `SECRET_KEY` dengan nilai acak yang dirahasiakan sebelum menjalankan aplikasi.
+
+### Menjalankan tes
+```bash
+python -m unittest discover -s tests -v
+```
 
 ---
 

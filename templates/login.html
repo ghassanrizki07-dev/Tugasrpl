@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CookFit - Login & Registrasi</title>
+    <meta name="description" content="Masuk atau daftar akun CookFit untuk mengakses fitur rekomendasi resep dan kalkulator nutrisi harian.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <div class="auth-container">
+        <!-- Floating Decorative Orbs -->
+        <div class="auth-orb orb-1"></div>
+        <div class="auth-orb orb-2"></div>
+        <div class="auth-orb orb-3"></div>
+
+        <!-- Auth Card -->
+        <div class="auth-card" id="auth-card">
+            <!-- Brand -->
+            <div class="auth-brand">
+                <div class="auth-brand-icon">🍳</div>
+                <h1 class="auth-brand-title">CookFit</h1>
+                <p class="auth-brand-subtitle">Rekomendasi Resep & Penghitung Kalori</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form active" onsubmit="handleLogin(event)">
+                <div class="auth-form-header">
+                    <h2 class="auth-form-title">Selamat Datang! 👋</h2>
+                    <p class="auth-form-desc">Masuk ke akun CookFit Anda</p>
+                </div>
+
+                <div class="auth-alert" id="login-alert" style="display:none;"></div>
+
+                <div class="auth-field">
+                    <label class="auth-label" for="login-username">
+                        <span class="auth-label-icon">👤</span> Username
+                    </label>
+                    <input type="text" id="login-username" class="auth-input" placeholder="Masukkan username..." autocomplete="username" required>
+                </div>
+
+                <div class="auth-field">
+                    <label class="auth-label" for="login-password">
+                        <span class="auth-label-icon">🔒</span> Password
+                    </label>
+                    <div class="auth-input-wrapper">
+                        <input type="password" id="login-password" class="auth-input" placeholder="Masukkan password..." autocomplete="current-password" required>
+                        <button type="button" class="auth-toggle-pw" onclick="togglePassword('login-password', this)">👁️</button>
+                    </div>
+                </div>
+
+                <button type="submit" class="auth-btn-primary" id="login-btn">
+                    <span class="auth-btn-text">Masuk</span>
+                    <span class="auth-btn-loader" style="display:none;">⏳</span>
+                </button>
+
+                <div class="auth-switch">
+                    Belum punya akun? <a href="#" onclick="switchToRegister(event)">Daftar Sekarang</a>
+                </div>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="auth-form" onsubmit="handleRegister(event)">
+                <div class="auth-form-header">
+                    <h2 class="auth-form-title">Buat Akun Baru 🚀</h2>
+                    <p class="auth-form-desc">Bergabung dan mulai hidup sehat!</p>
+                </div>
+
+                <div class="auth-alert" id="register-alert" style="display:none;"></div>
+
+                <div class="auth-field">
+                    <label class="auth-label" for="reg-display-name">
+                        <span class="auth-label-icon">✨</span> Nama Tampilan
+                    </label>
+                    <input type="text" id="reg-display-name" class="auth-input" placeholder="Nama lengkap Anda..." required>
+                </div>
+
+                <div class="auth-field">
+                    <label class="auth-label" for="reg-username">
+                        <span class="auth-label-icon">👤</span> Username
+                    </label>
+                    <input type="text" id="reg-username" class="auth-input" placeholder="Pilih username unik..." autocomplete="username" required>
+                    <span class="auth-hint">Min. 3 karakter, huruf/angka/underscore</span>
+                </div>
+
+                <div class="auth-field">
+                    <label class="auth-label" for="reg-password">
+                        <span class="auth-label-icon">🔒</span> Password
+                    </label>
+                    <div class="auth-input-wrapper">
+                        <input type="password" id="reg-password" class="auth-input" placeholder="Min. 4 karakter..." autocomplete="new-password" required minlength="4">
+                        <button type="button" class="auth-toggle-pw" onclick="togglePassword('reg-password', this)">👁️</button>
+                    </div>
+                </div>
+
+                <div class="auth-field">
+                    <label class="auth-label" for="reg-password-confirm">
+                        <span class="auth-label-icon">🔐</span> Konfirmasi Password
+                    </label>
+                    <div class="auth-input-wrapper">
+                        <input type="password" id="reg-password-confirm" class="auth-input" placeholder="Ulangi password..." autocomplete="new-password" required minlength="4">
+                        <button type="button" class="auth-toggle-pw" onclick="togglePassword('reg-password-confirm', this)">👁️</button>
+                    </div>
+                </div>
+
+                <button type="submit" class="auth-btn-primary" id="register-btn">
+                    <span class="auth-btn-text">Daftar & Mulai</span>
+                    <span class="auth-btn-loader" style="display:none;">⏳</span>
+                </button>
+
+                <div class="auth-switch">
+                    Sudah punya akun? <a href="#" onclick="switchToLogin(event)">Masuk di sini</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // AUTH PAGE LOGIC
+        // ==========================================
+
+        function switchToRegister(e) {
+            e.preventDefault();
+            document.getElementById('login-form').classList.remove('active');
+            document.getElementById('register-form').classList.add('active');
+            clearAlerts();
+        }
+
+        function switchToLogin(e) {
+            e.preventDefault();
+            document.getElementById('register-form').classList.remove('active');
+            document.getElementById('login-form').classList.add('active');
+            clearAlerts();
+        }
+
+        function clearAlerts() {
+            document.querySelectorAll('.auth-alert').forEach(el => {
+                el.style.display = 'none';
+                el.className = 'auth-alert';
+            });
+        }
+
+        function showAlert(elementId, message, type = 'error') {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.className = `auth-alert ${type}`;
+            el.style.display = 'block';
+        }
+
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
+            }
+        }
+
+        function setLoading(btnId, loading) {
+            const btn = document.getElementById(btnId);
+            const text = btn.querySelector('.auth-btn-text');
+            const loader = btn.querySelector('.auth-btn-loader');
+            btn.disabled = loading;
+            text.style.display = loading ? 'none' : 'inline';
+            loader.style.display = loading ? 'inline' : 'none';
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            clearAlerts();
+
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            if (!username || !password) {
+                showAlert('login-alert', 'Username dan password wajib diisi.', 'error');
+                return;
+            }
+
+            setLoading('login-btn', true);
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const json = await res.json();
+
+                if (json.status === 'success') {
+                    showAlert('login-alert', `✅ Selamat datang, ${json.data.display_name}!`, 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 800);
+                } else {
+                    showAlert('login-alert', json.message || 'Login gagal.', 'error');
+                }
+            } catch (err) {
+                showAlert('login-alert', 'Tidak dapat terhubung ke server.', 'error');
+            } finally {
+                setLoading('login-btn', false);
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            clearAlerts();
+
+            const display_name = document.getElementById('reg-display-name').value.trim();
+            const username = document.getElementById('reg-username').value.trim();
+            const password = document.getElementById('reg-password').value;
+            const password_confirm = document.getElementById('reg-password-confirm').value;
+
+            if (!display_name || !username || !password) {
+                showAlert('register-alert', 'Semua field wajib diisi.', 'error');
+                return;
+            }
+
+            if (password !== password_confirm) {
+                showAlert('register-alert', 'Password dan konfirmasi tidak cocok.', 'error');
+                return;
+            }
+
+            if (password.length < 4) {
+                showAlert('register-alert', 'Password minimal 4 karakter.', 'error');
+                return;
+            }
+
+            setLoading('register-btn', true);
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, display_name })
+                });
+                const json = await res.json();
+
+                if (json.status === 'success') {
+                    showAlert('register-alert', '✅ Akun berhasil dibuat! Mengalihkan...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 800);
+                } else {
+                    showAlert('register-alert', json.message || 'Registrasi gagal.', 'error');
+                }
+            } catch (err) {
+                showAlert('register-alert', 'Tidak dapat terhubung ke server.', 'error');
+            } finally {
+                setLoading('register-btn', false);
+            }
+        }
+
+        // Auto-focus first input
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('login-username').focus();
+        });
+    </script>
+
+</body>
+</html>

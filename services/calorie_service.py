@@ -72,17 +72,44 @@ class CalorieService:
         return int(round(bmr * act))
 
     def calculate_profile_metrics(self, gender: str, weight_kg: float, height_cm: float,
-                                  age_years: int, activity_level: float = 1.375) -> Dict[str, Any]:
-        """Menghitung metrik lengkap BMR, TDEE, dan saran distribusi makronutrisi."""
+                                  age_years: int, activity_level: float = 1.375,
+                                  goal: str = "maintain") -> Dict[str, Any]:
+        """
+        Menghitung metrik lengkap BMR, TDEE, target kalori harian sesuai tujuan program (cutting/bulking/maintain),
+        serta saran distribusi makronutrisi optimal.
+        - Cutting: defisit kalori (-300 kcal) dengan protein lebih tinggi (35%) untuk menjaga massa otot.
+        - Bulking: surplus kalori (+300 kcal) dengan karbohidrat lebih tinggi (55%) untuk energi & sintesis otot.
+        - Maintain: kalori seimbang = TDEE (25% Protein, 50% Karbo, 25% Lemak).
+        """
         bmr = self.calculate_bmr(gender, weight_kg, height_cm, age_years)
         tdee = self.calculate_tdee(bmr, activity_level)
 
-        # Standar distribusi makro seimbang: Karbo 50%, Protein 25%, Lemak 25%
+        clean_goal = str(goal).strip().lower() if goal else "maintain"
+        if clean_goal not in ("maintain", "cutting", "bulking"):
+            clean_goal = "maintain"
+
+        # Penyesuaian kalori & rasio makronutrisi berdasarkan goal
+        if clean_goal == "cutting":
+            # Target kalori minimal dibatasi tidak boleh lebih rendah dari batas aman BMR
+            target_calories = max(int(round(bmr)), tdee - 300)
+            # Rasio cutting: Protein 35%, Karbo 40%, Lemak 25%
+            p_ratio, c_ratio, f_ratio = 0.35, 0.40, 0.25
+        elif clean_goal == "bulking":
+            target_calories = tdee + 300
+            # Rasio bulking: Protein 25%, Karbo 55%, Lemak 20%
+            p_ratio, c_ratio, f_ratio = 0.25, 0.55, 0.20
+        else: # maintain
+            target_calories = tdee
+            # Rasio seimbang: Protein 25%, Karbo 50%, Lemak 25%
+            p_ratio, c_ratio, f_ratio = 0.25, 0.50, 0.25
+
+        calorie_adjustment = target_calories - tdee
+
         # 1g Protein = 4 kcal, 1g Karbo = 4 kcal, 1g Lemak = 9 kcal
         macro_targets = {
-            "carbs_grams": int(round((tdee * 0.50) / 4)),
-            "protein_grams": int(round((tdee * 0.25) / 4)),
-            "fat_grams": int(round((tdee * 0.25) / 9))
+            "carbs_grams": int(round((target_calories * c_ratio) / 4)),
+            "protein_grams": int(round((target_calories * p_ratio) / 4)),
+            "fat_grams": int(round((target_calories * f_ratio) / 9))
         }
 
         return {
@@ -91,9 +118,170 @@ class CalorieService:
             "height_cm": height_cm,
             "age_years": age_years,
             "activity_level": activity_level,
+            "goal": clean_goal,
             "bmr": round(bmr),
             "tdee": tdee,
+            "calorie_adjustment": calorie_adjustment,
+            "daily_calorie_target": target_calories,
+            "target_calories": target_calories,
             "target_macros": macro_targets
+        }
+
+    # ==========================================
+    # KALKULATOR TAKARAN BAHAN MASAKAN (PORTION CALCULATOR)
+    # ==========================================
+    def calculate_ingredient_portion(self, name: str, amount: float, unit: str = "gram",
+                                     cal_per_100g: Optional[float] = None,
+                                     protein_per_100g: Optional[float] = None,
+                                     carbs_per_100g: Optional[float] = None,
+                                     fat_per_100g: Optional[float] = None) -> Dict[str, Any]:
+        """
+        Menghitung kalori dan protein masakan berdasarkan takaran gram atau satuan (siung, butir, sdm, dll).
+        """
+        if not name or not str(name).strip():
+            raise ValueError("Nama bahan tidak boleh kosong.")
+
+        clean_name = str(name).strip()
+        name_lower = clean_name.lower()
+
+        try:
+            qty = float(amount)
+        except (ValueError, TypeError):
+            raise ValueError("Jumlah takaran harus berupa angka numerik.")
+
+        if qty <= 0:
+            raise ValueError("Jumlah takaran harus lebih dari 0.")
+
+        clean_unit = str(unit).strip().lower() if unit else "gram"
+        unit_mult = {
+            "gram": 1.0,
+            "g": 1.0,
+            "kg": 1000.0,
+            "siung": 5.0,      # 1 siung bawang ≈ 5 gram
+            "butir": 50.0,     # 1 butir telur sedang ≈ 50 gram
+            "sdm": 15.0,       # 1 sendok makan ≈ 15 gram
+            "sdt": 5.0,        # 1 sendok teh ≈ 5 gram
+            "ikat": 150.0,     # 1 ikat sayur ≈ 150 gram
+            "potong": 50.0,    # 1 potong ≈ 50 gram
+            "buah": 50.0       # 1 buah ≈ 50 gram
+        }
+        mult = unit_mult.get(clean_unit, 1.0)
+        total_grams = round(qty * mult, 1)
+
+        nutrition_lookup = {
+            "dada ayam": {"cal": 165.0, "protein": 31.0, "carbs": 0.0, "fat": 3.6},
+            "daging ayam": {"cal": 190.0, "protein": 27.0, "carbs": 0.0, "fat": 8.0},
+            "daging sapi": {"cal": 250.0, "protein": 26.0, "carbs": 0.0, "fat": 15.0},
+            "telur ayam": {"cal": 155.0, "protein": 13.0, "carbs": 1.1, "fat": 11.0},
+            "telur": {"cal": 155.0, "protein": 13.0, "carbs": 1.1, "fat": 11.0},
+            "tahu putih": {"cal": 76.0, "protein": 8.0, "carbs": 1.9, "fat": 4.8},
+            "tahu": {"cal": 76.0, "protein": 8.0, "carbs": 1.9, "fat": 4.8},
+            "tempe": {"cal": 190.0, "protein": 19.0, "carbs": 9.4, "fat": 11.0},
+            "ikan": {"cal": 110.0, "protein": 22.0, "carbs": 0.0, "fat": 2.5},
+            "kangkung": {"cal": 19.0, "protein": 2.6, "carbs": 3.1, "fat": 0.2},
+            "bayam": {"cal": 23.0, "protein": 2.9, "carbs": 3.6, "fat": 0.4},
+            "bawang merah & putih": {"cal": 40.0, "protein": 1.5, "carbs": 9.0, "fat": 0.1},
+            "bawang merah": {"cal": 40.0, "protein": 1.4, "carbs": 9.0, "fat": 0.1},
+            "bawang putih": {"cal": 149.0, "protein": 6.4, "carbs": 33.0, "fat": 0.5},
+            "bawang": {"cal": 40.0, "protein": 1.5, "carbs": 9.0, "fat": 0.1},
+            "cabai merah": {"cal": 40.0, "protein": 1.9, "carbs": 8.8, "fat": 0.4},
+            "cabai": {"cal": 40.0, "protein": 1.9, "carbs": 8.8, "fat": 0.4},
+            "wortel": {"cal": 41.0, "protein": 0.9, "carbs": 9.6, "fat": 0.2},
+            "tomat": {"cal": 18.0, "protein": 0.9, "carbs": 3.9, "fat": 0.2},
+            "kecap manis": {"cal": 150.0, "protein": 2.0, "carbs": 35.0, "fat": 0.0},
+            "minyak": {"cal": 884.0, "protein": 0.0, "carbs": 0.0, "fat": 100.0},
+            "nasi": {"cal": 130.0, "protein": 2.7, "carbs": 28.0, "fat": 0.3}
+        }
+
+        ref = nutrition_lookup.get(name_lower)
+        if not ref:
+            for k, v in nutrition_lookup.items():
+                if k in name_lower or name_lower in k:
+                    ref = v
+                    break
+
+        default_cal = ref["cal"] if ref else 50.0
+        default_p = ref["protein"] if ref else 2.0
+        default_c = ref["carbs"] if ref else 5.0
+        default_f = ref["fat"] if ref else 1.0
+
+        c_100 = float(cal_per_100g) if cal_per_100g is not None and cal_per_100g >= 0 else default_cal
+        p_100 = float(protein_per_100g) if protein_per_100g is not None and protein_per_100g >= 0 else default_p
+        carb_100 = float(carbs_per_100g) if carbs_per_100g is not None and carbs_per_100g >= 0 else default_c
+        fat_100 = float(fat_per_100g) if fat_per_100g is not None and fat_per_100g >= 0 else default_f
+
+        factor = total_grams / 100.0
+        calories = round(factor * c_100, 1)
+        protein = round(factor * p_100, 1)
+        carbs = round(factor * carb_100, 1)
+        fat = round(factor * fat_100, 1)
+
+        return {
+            "name": clean_name,
+            "amount": qty,
+            "unit": clean_unit,
+            "total_grams": total_grams,
+            "calories": calories,
+            "protein": protein,
+            "carbs": carbs,
+            "fat": fat,
+            "cal_per_100g": c_100,
+            "protein_per_100g": p_100
+        }
+
+    def calculate_cooking_recipe(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Menghitung total kalori, protein, karbohidrat, dan lemak dari seluruh bahan masakan.
+        """
+        if not items or not isinstance(items, list):
+            return {
+                "total_calories": 0.0,
+                "total_protein": 0.0,
+                "total_carbs": 0.0,
+                "total_fat": 0.0,
+                "total_grams": 0.0,
+                "items": []
+            }
+
+        calculated_items = []
+        tot_cal = 0.0
+        tot_p = 0.0
+        tot_c = 0.0
+        tot_f = 0.0
+        tot_grams = 0.0
+
+        for item in items:
+            name = item.get("name", "")
+            amount = item.get("amount", 0)
+            unit = item.get("unit", "gram")
+            cal_100 = item.get("cal_per_100g")
+            p_100 = item.get("protein_per_100g")
+            c_100 = item.get("carbs_per_100g")
+            f_100 = item.get("fat_per_100g")
+
+            calc = self.calculate_ingredient_portion(
+                name=name,
+                amount=amount,
+                unit=unit,
+                cal_per_100g=cal_100,
+                protein_per_100g=p_100,
+                carbs_per_100g=c_100,
+                fat_per_100g=f_100
+            )
+            calculated_items.append(calc)
+            tot_cal += calc["calories"]
+            tot_p += calc["protein"]
+            tot_c += calc["carbs"]
+            tot_f += calc["fat"]
+            tot_grams += calc["total_grams"]
+
+        return {
+            "total_calories": round(tot_cal, 1),
+            "total_protein": round(tot_p, 1),
+            "total_carbs": round(tot_c, 1),
+            "total_fat": round(tot_f, 1),
+            "total_grams": round(tot_grams, 1),
+            "items": calculated_items
         }
 
     # ==========================================
