@@ -42,7 +42,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 1,
         "title": "Tumis Kangkung Telur",
-        "image_icon": "🥗",
+        "image_icon": "Sayur",
         "prep_time": 15,
         "servings": 2,
         "total_calories": 210,
@@ -60,7 +60,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 2,
         "title": "Omelet Tahu Sehat",
-        "image_icon": "🍳",
+        "image_icon": "Telur",
         "prep_time": 10,
         "servings": 1,
         "total_calories": 250,
@@ -78,7 +78,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 3,
         "title": "Dada Ayam Tumis Bawang",
-        "image_icon": "🍗",
+        "image_icon": "Ayam",
         "prep_time": 20,
         "servings": 2,
         "total_calories": 320,
@@ -95,7 +95,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 4,
         "title": "Ayam Panggang Bawang Putih Tinggi Protein",
-        "image_icon": "🍗",
+        "image_icon": "Ayam",
         "prep_time": 30,
         "servings": 1,
         "total_calories": 340,
@@ -113,7 +113,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 5,
         "title": "Tahu Ayam Kukus Tinggi Protein",
-        "image_icon": "🍲",
+        "image_icon": "Kukus",
         "prep_time": 25,
         "servings": 1,
         "total_calories": 330,
@@ -131,7 +131,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 6,
         "title": "Omelet Dada Ayam Tinggi Protein",
-        "image_icon": "🍳",
+        "image_icon": "Telur",
         "prep_time": 20,
         "servings": 1,
         "total_calories": 310,
@@ -149,7 +149,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 7,
         "title": "Tuna Brokoli Tumis Tinggi Protein",
-        "image_icon": "🐟",
+        "image_icon": "Tuna",
         "prep_time": 15,
         "servings": 1,
         "total_calories": 225,
@@ -167,7 +167,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 8,
         "title": "Bowl Edamame Tahu dan Brokoli",
-        "image_icon": "🥗",
+        "image_icon": "Sayur",
         "prep_time": 20,
         "servings": 1,
         "total_calories": 245,
@@ -185,7 +185,7 @@ const FALLBACK_RECIPES = [
     {
         "id": 9,
         "title": "Salad Tuna Telur dan Timun",
-        "image_icon": "🥚",
+        "image_icon": "Telur",
         "prep_time": 15,
         "servings": 1,
         "total_calories": 235,
@@ -205,6 +205,7 @@ const FALLBACK_RECIPES = [
 document.addEventListener('DOMContentLoaded', () => {
     loadCurrentUser();
     initNavigation();
+    initAccountMenu();
     loadIngredients();
     loadDailyLogs();
     renderIngredientsSummaryList();
@@ -223,9 +224,25 @@ async function loadCurrentUser() {
             const user = json.data;
             const avatar = document.getElementById('user-avatar');
             const displayName = user.display_name || user.username || '';
+            const displayNameEl = document.getElementById('account-display-name');
+            const usernameEl = document.getElementById('account-username');
+            const activeDaysEl = document.getElementById('account-active-days');
+            const joinedDateEl = document.getElementById('account-joined-date');
             if (avatar) {
                 avatar.textContent = (displayName || '?')[0].toUpperCase();
                 avatar.title = displayName;
+            }
+            if (displayNameEl) displayNameEl.textContent = displayName;
+            if (usernameEl) usernameEl.textContent = `@${user.username}`;
+            if (activeDaysEl) {
+                const activeDays = Number(user.active_days) || 0;
+                activeDaysEl.textContent = `${activeDays} hari`;
+            }
+            if (joinedDateEl && user.created_at) {
+                const joinedDate = new Date(`${user.created_at.replace(' ', 'T')}Z`);
+                joinedDateEl.textContent = Number.isNaN(joinedDate.getTime())
+                    ? ''
+                    : `Bergabung sejak ${joinedDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`;
             }
             // Sinkronkan profil akun dari database secara terisolasi per user
             userProfile.name = displayName;
@@ -264,6 +281,33 @@ async function loadCurrentUser() {
     } catch (err) {
         console.warn('Gagal memuat data user:', err);
     }
+}
+
+function initAccountMenu() {
+    const avatar = document.getElementById('user-avatar');
+    const menu = document.getElementById('account-menu');
+    if (!avatar || !menu) return;
+
+    avatar.addEventListener('click', () => {
+        const isOpen = !menu.hidden;
+        menu.hidden = isOpen;
+        avatar.setAttribute('aria-expanded', String(!isOpen));
+    });
+
+    document.addEventListener('click', event => {
+        if (!menu.hidden && !menu.parentElement.contains(event.target)) {
+            menu.hidden = true;
+            avatar.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !menu.hidden) {
+            menu.hidden = true;
+            avatar.setAttribute('aria-expanded', 'false');
+            avatar.focus();
+        }
+    });
 }
 
 async function handleLogout() {
@@ -358,7 +402,7 @@ function renderPantryGrid(filterText = '') {
             const itemEl = document.createElement('div');
             itemEl.className = `pantry-item ${isSelected ? 'selected' : ''}`;
             itemEl.innerHTML = `
-                <div class="pantry-checkbox">${isSelected ? '✓' : ''}</div>
+                <div class="pantry-checkbox">${isSelected ? 'Ada' : ''}</div>
                 <div class="pantry-name">${item.name}</div>
                 <div class="pantry-cal">${item.calories_per_100g} kcal</div>
             `;
@@ -407,7 +451,7 @@ async function triggerRecipeMatching() {
     const listContainer = document.getElementById('recipe-list-container');
     if (!listContainer) return;
 
-    listContainer.innerHTML = `<div style="text-align:center; padding: 40px; color: #94a3b8;">🔄 Menghitung persentase kecocokan resep...</div>`;
+    listContainer.innerHTML = `<div style="text-align:center; padding: 40px; color: #94a3b8;">Menghitung kecocokan resep...</div>`;
 
     try {
         const body = { ingredient_ids: Array.from(selectedIngredients) };
@@ -494,31 +538,31 @@ function renderRecipeList(recipes) {
                         <div class="match-badge ${badgeClass}">${r.match_score}% Match</div>
                     </div>
                     <div class="recipe-meta">
-                        <span>⏱️ ${r.prep_time} mnt</span> • <span>🍽️ ${r.servings} Porsi</span>
+                        <span>${r.prep_time} menit</span> • <span>${r.servings} porsi</span>
                     </div>
                 </div>
             </div>
 
             <div class="nutri-pills">
-                <div class="nutri-pill">🔥 ${r.total_calories} <span>kcal</span></div>
-                <div class="nutri-pill">🥩 P: ${r.total_protein}g</div>
-                <div class="nutri-pill">🍚 K: ${r.total_carbs}g</div>
-                <div class="nutri-pill">🥑 L: ${r.total_fat}g</div>
+                <div class="nutri-pill">Kalori: ${r.total_calories} <span>kcal</span></div>
+                <div class="nutri-pill">Protein: ${r.total_protein}g</div>
+                <div class="nutri-pill">Karbo: ${r.total_carbs}g</div>
+                <div class="nutri-pill">Lemak: ${r.total_fat}g</div>
             </div>
 
             ${r.missing_ingredients && r.missing_ingredients.length > 0 ? `
                 <div class="missing-box">
-                    <div class="missing-title">⚠️ Bahan Kurang (${r.missing_ingredients.length}):</div>
+                    <div class="missing-title">Bahan kurang (${r.missing_ingredients.length})</div>
                     <div class="missing-list">${r.missing_ingredients.map(m => m.name).join(', ')}</div>
                 </div>
             ` : `
                 <div class="missing-box" style="background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3);">
-                    <div class="missing-title" style="color: #34d399;">✅ Semua Bahan Tersedia di Kulkas!</div>
+                    <div class="missing-title" style="color: #34d399;">Semua bahan tersedia di Pantry</div>
                 </div>
             `}
 
             <div class="recipe-actions">
-                <button class="btn-secondary" onclick="viewRecipeDetail(${r.id})">📖 Panduan</button>
+                <button class="btn-secondary" onclick="viewRecipeDetail(${r.id})">Lihat resep</button>
                 <button
                     class="btn-outline-primary"
                     onclick="logRecipeToTracker(${r.id})"
@@ -540,7 +584,7 @@ function viewRecipeDetail(recipeId) {
     const r = currentRecipes.find(item => item.id === recipeId) || FALLBACK_RECIPES.find(item => item.id === recipeId);
     if (!r) return;
 
-    document.getElementById('modal-recipe-title').textContent = `${r.image_icon} ${r.title}`;
+    document.getElementById('modal-recipe-title').textContent = r.title;
     
     let ingHtml = r.ingredients.map(i => `<li><b>${i.name}</b> (${i.amount}) - ${i.calories} kcal</li>`).join('');
     document.getElementById('modal-ingredients-list').innerHTML = ingHtml;
@@ -603,7 +647,7 @@ async function logRecipeToTracker(recipeId) {
         const json = await res.json();
         if (json.status === 'success') {
             await loadDailyLogs();
-            alert(`✅ "${recipe.title}" berhasil ditambahkan ke NutriTracker!`);
+            alert(`"${recipe.title}" berhasil ditambahkan ke catatan makan.`);
             return;
         }
         alert('Gagal mencatat resep: ' + (json.message || 'Terjadi kesalahan.'));
@@ -617,7 +661,7 @@ async function logRecipeToTracker(recipeId) {
         ...payload
     };
     dailyLogs.unshift(fallbackLog);
-    alert(`✅ "${recipe.title}" berhasil ditambahkan ke NutriTracker!`);
+    alert(`"${recipe.title}" berhasil ditambahkan ke catatan makan.`);
     updateTrackerUI();
 }
 
@@ -684,11 +728,11 @@ function renderLogList() {
         item.innerHTML = `
             <div>
                 <div class="log-title">${log.recipe_title}</div>
-                <div class="log-meta">${log.meal_type} • P:${log.protein}g K:${log.carbs}g L:${log.fat}g</div>
+                <div class="log-meta">${log.meal_type} • Protein ${log.protein}g · Karbo ${log.carbs}g · Lemak ${log.fat}g</div>
             </div>
             <div style="display:flex; align-items:center;">
                 <div class="log-cal">+${log.calories} kcal</div>
-                <button class="btn-del" onclick="deleteLogEntry(${log.id})">🗑️</button>
+                <button class="btn-del" onclick="deleteLogEntry(${log.id})">Hapus</button>
             </div>
         `;
         container.appendChild(item);
@@ -767,7 +811,7 @@ async function saveProfile(e) {
 
             updateProfileUI();
             updateTrackerUI();
-            alert('✅ Profil, BMR, dan target kalori harian berhasil disimpan!');
+            alert('Profil, BMR, dan target kalori harian berhasil disimpan.');
             return;
         } else {
             alert('Gagal: ' + (json.message || 'Terjadi kesalahan kalkulasi.'));
@@ -795,7 +839,7 @@ async function saveProfile(e) {
 
     updateProfileUI();
     updateTrackerUI();
-    alert('✅ Profil dan target kalori harian berhasil diperbarui!');
+    alert('Profil dan target kalori harian berhasil diperbarui.');
 }
 
 // ==========================================
@@ -852,7 +896,7 @@ async function handleAddNewIngredient(e) {
             if (nameInput) nameInput.value = '';
             if (calInput) calInput.value = '50';
 
-            alert(`✅ Bahan "${name}" berhasil ditambahkan ke kategori "${itemCategory}" di Pantry kulkas Anda!`);
+            alert(`Bahan "${name}" berhasil ditambahkan ke kategori "${itemCategory}" di Pantry Anda.`);
             return;
         } else {
             alert('Gagal: ' + (json.message || 'Terjadi kesalahan'));
@@ -891,7 +935,7 @@ async function handleAddNewIngredient(e) {
     renderIngredientsSummaryList();
 
     if (nameInput) nameInput.value = '';
-    alert(`✅ Bahan "${name}" berhasil ditambahkan ke kategori "${itemCategory}" di Pantry kulkas Anda!`);
+    alert(`Bahan "${name}" berhasil ditambahkan ke kategori "${itemCategory}" di Pantry Anda.`);
 }
 
 function renderIngredientsSummaryList() {
@@ -911,7 +955,7 @@ function renderIngredientsSummaryList() {
         const isProtein = category.toLowerCase().includes('protein') || category.toLowerCase().includes('daging');
         const badgeColor = isProtein ? '#ef4444' : '#10b981';
         const badgeBg = isProtein ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)';
-        const icon = isProtein ? '🥩' : '🥦';
+        const categoryLabel = isProtein ? 'Protein' : 'Sayuran';
 
         const catBlock = document.createElement('div');
         catBlock.style.cssText = 'background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 12px;';
@@ -922,14 +966,14 @@ function renderIngredientsSummaryList() {
                     <span style="font-size:14px; color: var(--text-main); font-weight:600;">${item.name}</span>
                     <span style="font-size:11px; color:#94a3b8;">(${item.calories_per_100g} kcal/100g)</span>
                 </div>
-                <button onclick="handleDeleteIngredient(${item.id}, '${item.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:14px; padding:4px 8px;" title="Hapus bahan">🗑️</button>
+                <button onclick="handleDeleteIngredient(${item.id}, '${item.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:12px; padding:4px 8px;" title="Hapus bahan">Hapus</button>
             </div>
         `).join('');
 
         catBlock.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
                 <span style="font-weight:700; font-size:13px; color: ${badgeColor}; display:flex; align-items:center; gap:6px;">
-                    <span>${icon}</span> ${category}
+                    <span>${categoryLabel}</span> ${category}
                 </span>
                 <span style="font-size:11px; background:${badgeBg}; color:${badgeColor}; padding:2px 8px; border-radius:20px; font-weight:600;">
                     ${items.length} bahan

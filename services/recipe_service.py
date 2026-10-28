@@ -51,7 +51,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 1,
         "title": "Tumis Kangkung Telur",
-        "image_icon": "🥗",
+        "image_icon": "Sayur",
         "prep_time": 15,
         "servings": 2,
         "total_calories": 210,
@@ -69,7 +69,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 2,
         "title": "Omelet Tahu Sehat",
-        "image_icon": "🍳",
+        "image_icon": "Telur",
         "prep_time": 10,
         "servings": 1,
         "total_calories": 250,
@@ -87,7 +87,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 3,
         "title": "Dada Ayam Tumis Bawang",
-        "image_icon": "🍗",
+        "image_icon": "Ayam",
         "prep_time": 20,
         "servings": 2,
         "total_calories": 320,
@@ -104,7 +104,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 4,
         "title": "Ayam Panggang Bawang Putih Tinggi Protein",
-        "image_icon": "🍗",
+        "image_icon": "Ayam",
         "prep_time": 30,
         "servings": 1,
         "total_calories": 340,
@@ -122,7 +122,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 5,
         "title": "Tahu Ayam Kukus Tinggi Protein",
-        "image_icon": "🍲",
+        "image_icon": "Kukus",
         "prep_time": 25,
         "servings": 1,
         "total_calories": 330,
@@ -140,7 +140,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 6,
         "title": "Omelet Dada Ayam Tinggi Protein",
-        "image_icon": "🍳",
+        "image_icon": "Telur",
         "prep_time": 20,
         "servings": 1,
         "total_calories": 310,
@@ -158,7 +158,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 7,
         "title": "Tuna Brokoli Tumis Tinggi Protein",
-        "image_icon": "🐟",
+        "image_icon": "Tuna",
         "prep_time": 15,
         "servings": 1,
         "total_calories": 225,
@@ -176,7 +176,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 8,
         "title": "Bowl Edamame Tahu dan Brokoli",
-        "image_icon": "🥗",
+        "image_icon": "Sayur",
         "prep_time": 20,
         "servings": 1,
         "total_calories": 245,
@@ -194,7 +194,7 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
     {
         "id": 9,
         "title": "Salad Tuna Telur dan Timun",
-        "image_icon": "🥚",
+        "image_icon": "Telur",
         "prep_time": 15,
         "servings": 1,
         "total_calories": 235,

@@ -1,4 +1,4 @@
-/* CookFit Mobile-First Web Stylesheet - Modern Glassmorphism Theme */
+/* CookFit mobile-first stylesheet */
 
 :root {
     --bg-dark: #0f172a;
@@ -1136,25 +1136,90 @@ body {
     gap: 8px;
 }
 
+.account-menu-wrapper {
+    position: relative;
+}
+
+.account-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(270px, calc(100vw - 32px));
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #dedede;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.account-menu[hidden] {
+    display: none;
+}
+
+.account-menu-name {
+    color: #171717;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.account-menu-username,
+.account-joined {
+    color: #666666;
+    font-size: 12px;
+}
+
+.account-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 0;
+    border-top: 1px solid #e5e5e5;
+    border-bottom: 1px solid #e5e5e5;
+    color: #555555;
+    font-size: 12px;
+}
+
+.account-stat strong {
+    color: #171717;
+    font-size: 18px;
+}
+
+.account-menu .btn-logout {
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 7px;
+}
+
 .header-avatar {
     width: 32px;
     height: 32px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(59, 130, 246, 0.2));
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: var(--font-family);
+    border-radius: 50%;
+    background: #171717;
+    border: 1px solid #171717;
+    color: #ffffff;
     font-size: 14px;
     font-weight: 700;
-    color: #34d399;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .header-avatar:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    background: #333333;
+    border-color: #333333;
+}
+
+.header-avatar:focus-visible {
+    outline: 2px solid #555555;
+    outline-offset: 2px;
 }
 
 .btn-logout {
@@ -1173,4 +1238,249 @@ body {
 .btn-logout:hover {
     background: rgba(239, 68, 68, 0.2);
     border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Simple monochrome interface */
+:root {
+    --bg-dark: #f4f4f4;
+    --card-bg: #ffffff;
+    --card-border: #dedede;
+    --primary: #171717;
+    --primary-hover: #000000;
+    --primary-glow: rgba(0, 0, 0, 0.08);
+    --accent-orange: #555555;
+    --accent-blue: #333333;
+    --accent-purple: #666666;
+    --accent-red: #444444;
+    --text-main: #171717;
+    --text-muted: #666666;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+    background: #f4f4f4;
+    color: #171717;
+}
+
+.app-viewport {
+    background: #ffffff;
+    border-color: #e5e5e5;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
+}
+
+.app-header,
+.bottom-nav {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: #e5e5e5;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.brand-icon,
+.auth-brand-icon {
+    width: 52px;
+    height: 52px;
+    margin-bottom: 12px;
+    font-size: 20px;
+    background: #171717;
+    color: #ffffff;
+    border-radius: 8px;
+    box-shadow: none;
+    animation: none;
+}
+
+.brand-title,
+.auth-brand-title {
+    background: none;
+    color: #171717;
+    -webkit-text-fill-color: #171717;
+}
+
+.header-badge,
+.nav-badge {
+    background: #eeeeee;
+    color: #222222;
+    border-color: #dddddd;
+}
+
+.nav-item.active,
+.section-title,
+.recipe-title,
+.category-title,
+.form-label {
+    color: #171717;
+}
+
+.nav-item.active .nav-icon {
+    transform: none;
+}
+
+.search-input,
+.form-control,
+.auth-input {
+    background: #ffffff;
+    color: #171717;
+    border-color: #d6d6d6;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.search-input:focus,
+.form-control:focus,
+.auth-input:focus {
+    border-color: #555555;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.category-group,
+.tracker-summary-card,
+.recipe-card,
+.auth-card,
+.macro-box,
+.modal-content {
+    background: #ffffff;
+    border-color: #e2e2e2;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.recipe-card:hover {
+    border-color: #bdbdbd;
+    transform: none;
+}
+
+.recipe-icon {
+    min-width: 48px;
+    width: auto;
+    height: 34px;
+    padding: 0 10px;
+    background: #eeeeee;
+    border: 1px solid #dddddd;
+    border-radius: 6px;
+    color: #222222;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.match-badge,
+.nutri-pill,
+.missing-box,
+.progress-bar-bg {
+    background: #f1f1f1;
+    color: #333333;
+    border-color: #dddddd;
+}
+
+.btn-primary,
+.auth-btn-primary {
+    background: #171717;
+    color: #ffffff;
+    border: 1px solid #171717;
+    box-shadow: none;
+}
+
+.btn-primary:hover,
+.auth-btn-primary:hover,
+.btn-primary:active,
+.auth-btn-primary:active {
+    background: #333333;
+    box-shadow: none;
+}
+
+.btn-secondary,
+.btn-outline-primary,
+.btn-logout,
+.auth-toggle-pw,
+.btn-del,
+.modal-close {
+    background: #ffffff;
+    color: #222222;
+    border: 1px solid #cccccc;
+    box-shadow: none;
+}
+
+.btn-secondary:hover,
+.btn-outline-primary:hover,
+.btn-logout:hover,
+.auth-toggle-pw:hover {
+    background: #f1f1f1;
+    color: #111111;
+    border-color: #aaaaaa;
+}
+
+.auth-input-wrapper .auth-input {
+    padding-right: 92px;
+}
+
+.auth-toggle-pw {
+    right: 8px;
+    font-size: 11px;
+    padding: 4px 6px;
+    opacity: 1;
+}
+
+.pantry-checkbox {
+    width: 32px;
+    flex-shrink: 0;
+}
+
+.pantry-name {
+    color: #ffffff;
+}
+
+.progress-bar-fill {
+    background: #222222;
+    box-shadow: none;
+}
+
+.macro-label,
+.gauge-target,
+.section-subtitle,
+.log-meta,
+.auth-form-desc,
+.auth-hint {
+    color: #666666;
+}
+
+.log-item,
+.auth-input-wrapper,
+.auth-alert,
+.auth-switch {
+    border-color: #e2e2e2;
+}
+
+.auth-container {
+    background: #f4f4f4;
+}
+
+.auth-card {
+    border-radius: 12px;
+}
+
+.auth-alert.error,
+.auth-alert.success {
+    background: #f1f1f1;
+    color: #222222;
+    border-color: #d8d8d8;
+}
+
+.auth-switch a {
+    color: #171717;
+}
+
+.auth-orb {
+    display: none;
+}
+
+.app-viewport [style*="color:"] {
+    color: #333333 !important;
+}
+
+.app-viewport [style*="rgba("] {
+    border-color: #dddddd !important;
+    background-color: #f5f5f5 !important;
+    box-shadow: none !important;
+}
+
+.app-viewport [style*="linear-gradient"] {
+    background: #171717 !important;
 }

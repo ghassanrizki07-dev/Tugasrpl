@@ -108,6 +108,7 @@ def current_user_endpoint():
     if 'user_id' not in session:
         return jsonify({'status': 'error', 'message': 'Belum login.'}), 401
 
+    auth_service.record_activity_day(session['user_id'])
     user = auth_service.get_user_by_id(session['user_id'])
     if not user:
         session.clear()

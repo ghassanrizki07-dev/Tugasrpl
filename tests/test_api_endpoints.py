@@ -82,6 +82,13 @@ class TestFlaskEndpoints(unittest.TestCase):
         self.assertEqual(res_me.status_code, 200)
         data_me = json.loads(res_me.data)["data"]
         self.assertEqual(data_me["username"], unique_user)
+        self.assertEqual(data_me["active_days"], 1)
+        self.assertIn("created_at", data_me)
+
+        # Repeated use on the same calendar day must not inflate active days.
+        res_me_again = self.client.get('/api/auth/me')
+        self.assertEqual(res_me_again.status_code, 200)
+        self.assertEqual(json.loads(res_me_again.data)["data"]["active_days"], 1)
 
         # 3. Logout
         res_logout = self.client.post('/api/auth/logout')

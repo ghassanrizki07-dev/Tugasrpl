@@ -10,6 +10,7 @@ Modul logika bisnis untuk:
 
 import sqlite3
 import os
+from datetime import date
 from typing import Dict, Any, Optional
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -49,6 +50,14 @@ class AuthService:
                     goal TEXT DEFAULT 'maintain',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS user_activity_days (
+                    user_id INTEGER NOT NULL,
+                    activity_date TEXT NOT NULL,
+                    PRIMARY KEY (user_id, activity_date),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             ''')
             user_columns = {
@@ -176,8 +185,30 @@ class AuthService:
                 "activity_level": row['activity_level'],
                 "bmr": row['bmr'],
                 "tdee": row['tdee'],
-                "goal": row['goal']
+                "goal": row['goal'],
+                "created_at": row['created_at'],
+                "active_days": conn.execute(
+                    'SELECT COUNT(*) FROM user_activity_days WHERE user_id = ?',
+                    (user_id,)
+                ).fetchone()[0]
             }
+        finally:
+            conn.close()
+
+    def record_activity_day(self, user_id: int, activity_date: date = None) -> int:
+        """Record one distinct day of authenticated use for a user."""
+        day = (activity_date or date.today()).isoformat()
+        conn = self._get_connection()
+        try:
+            conn.execute(
+                'INSERT OR IGNORE INTO user_activity_days (user_id, activity_date) VALUES (?, ?)',
+                (user_id, day)
+            )
+            conn.commit()
+            return conn.execute(
+                'SELECT COUNT(*) FROM user_activity_days WHERE user_id = ?',
+                (user_id,)
+            ).fetchone()[0]
         finally:
             conn.close()
 

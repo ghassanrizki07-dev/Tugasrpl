@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CookFit - Rekomendasi Resep & Penghitung Kalori Harian</title>
     <meta name="description" content="Aplikasi mobile web CookFit untuk rekomendasi resep berdasarkan isi kulkas & kalkulator nutrisi harian.">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -19,15 +15,27 @@
         <!-- Header -->
         <header class="app-header">
             <div class="brand-logo">
-                <div class="brand-icon">🍳</div>
+                <div class="brand-icon">CF</div>
                 <div>
                     <div class="brand-title">CookFit</div>
                 </div>
             </div>
             <div class="header-user-info">
                 <div class="header-badge" id="selected-count-badge">0 Bahan</div>
-                <div class="header-avatar" id="user-avatar" title="Profil">?</div>
-                <button class="btn-logout" onclick="handleLogout()">Logout</button>
+                <div class="account-menu-wrapper">
+                    <button class="header-avatar" id="user-avatar" type="button" title="Menu akun"
+                            aria-label="Buka menu akun" aria-expanded="false" aria-controls="account-menu">?</button>
+                    <div class="account-menu" id="account-menu" hidden>
+                        <div class="account-menu-name" id="account-display-name"></div>
+                        <div class="account-menu-username" id="account-username"></div>
+                        <div class="account-stat">
+                            <span>Hari aktif menggunakan CookFit</span>
+                            <strong id="account-active-days">0 hari</strong>
+                        </div>
+                        <div class="account-joined" id="account-joined-date"></div>
+                        <button class="btn-logout" type="button" onclick="handleLogout()">Logout</button>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -38,12 +46,12 @@
             <!-- TAB 1: MY PANTRY (Bahan Dapur) -->
             <section id="pantry-tab" class="tab-content active">
                 <div class="section-header">
-                    <h1 class="section-title">🧺 My Pantry (Kulkas Saya)</h1>
+                    <h1 class="section-title">Pantry Saya</h1>
                     <p class="section-subtitle">Centang bahan makanan yang tersedia di dapur Anda saat ini.</p>
                 </div>
 
                 <div class="search-box">
-                    <span class="search-icon">🔍</span>
+                    <span class="search-icon">Cari</span>
                     <input type="text" id="pantry-search" class="search-input" placeholder="Cari nama bahan (cth: Telur, Kangkung)..." oninput="filterPantry()">
                 </div>
 
@@ -54,7 +62,7 @@
 
                 <div class="sticky-action-bar">
                     <button class="btn-primary" onclick="document.querySelector('[data-tab=recipes-tab]').click()">
-                        <span>🔥 Cari Resep Cocok</span>
+                        <span>Cari Resep</span>
                     </button>
                 </div>
             </section>
@@ -62,7 +70,7 @@
             <!-- TAB 2: RECIPE MATCHER (Rekomendasi Resep) -->
             <section id="recipes-tab" class="tab-content">
                 <div class="section-header">
-                    <h2 class="section-title">🍳 Rekomendasi Resep Smart</h2>
+                    <h2 class="section-title">Rekomendasi Resep</h2>
                     <p class="section-subtitle">Resep diurutkan berdasarkan persentase kesesuaian bahan kulkas Anda.</p>
                 </div>
 
@@ -75,14 +83,14 @@
             <!-- TAB 3: NUTRITRACKER & DAILY LOG -->
             <section id="tracker-tab" class="tab-content">
                 <div class="section-header">
-                    <h2 class="section-title">📊 NutriTracker Harian</h2>
+                    <h2 class="section-title">Catatan Nutrisi Harian</h2>
                     <p class="section-subtitle">Pantau asupan kalori & makronutrisi harian Anda.</p>
                 </div>
 
                 <!-- Dashboard Summary -->
                 <div class="tracker-summary-card">
                     <div class="summary-top">
-                        <span style="font-size: 13px; font-weight: 700; color: #60a5fa;">PROGRESS KALORI HARI INI</span>
+                        <span style="font-size: 13px; font-weight: 700; color: #60a5fa;">KALORI HARI INI</span>
                         <span style="font-size: 12px; color: #94a3b8;">Rumus Mifflin-St Jeor</span>
                     </div>
                     <div class="calorie-gauge">
@@ -112,7 +120,7 @@
                 </div>
 
                 <div class="section-header">
-                    <h3 class="section-title" style="font-size:15px;">📝 Jurnal Makan Hari Ini</h3>
+                    <h3 class="section-title" style="font-size:15px;">Jurnal Makan</h3>
                 </div>
 
                 <div id="daily-logs-container">
@@ -123,7 +131,7 @@
             <!-- TAB 4: PROFILE & BMR CALCULATOR -->
             <section id="profile-tab" class="tab-content">
                 <div class="section-header">
-                    <h2 class="section-title">👤 Profil & Kalkulator BMR</h2>
+                    <h2 class="section-title">Profil & Kalkulator BMR</h2>
                     <p class="section-subtitle">Hitung batas kalori harian (TDEE) berdasarkan kondisi fisik Anda.</p>
                 </div>
 
@@ -194,7 +202,7 @@
                             <small style="display:block; color:var(--text-muted); margin-top:6px;">Target cutting tidak akan ditetapkan di bawah estimasi BMR.</small>
                         </div>
 
-                        <button type="submit" class="btn-primary" style="margin-top:10px;">💾 Simpan & Hitung Ulang</button>
+                        <button type="submit" class="btn-primary" style="margin-top:10px;">Simpan & Hitung Ulang</button>
                     </form>
                 </div>
             </section>
@@ -202,7 +210,7 @@
             <!-- TAB 5: TAMBAH BAHAN MAKANAN KE PANTRY -->
             <section id="shopping-tab" class="tab-content">
                 <div class="section-header">
-                    <h2 class="section-title">🥬 Tambah Bahan ke Pantry</h2>
+                    <h2 class="section-title">Tambah Bahan ke Pantry</h2>
                     <p class="section-subtitle">Masukkan bahan makanan yang Anda miliki dan pilih kategorinya agar langsung muncul di Pantry kulkas Anda.</p>
                 </div>
 
@@ -217,8 +225,8 @@
                         <div class="form-group" style="margin-bottom: 14px;">
                             <label class="form-label" for="manual-ingredient-category">Pilih Kategori di Pantry</label>
                             <select id="manual-ingredient-category" class="form-control" required style="font-size: 14px;">
-                                <option value="Protein & Daging">🥩 Protein & Daging</option>
-                                <option value="Sayuran & Bumbu" selected>🥦 Sayuran & Bumbu</option>
+                                <option value="Protein & Daging">Protein & Daging</option>
+                                <option value="Sayuran & Bumbu" selected>Sayuran & Bumbu</option>
                             </select>
                         </div>
 
@@ -228,23 +236,23 @@
                         </div>
 
                         <button type="submit" class="btn-primary" style="width: 100%; padding: 13px; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            <span>➕ Masukkan ke Pantry Kulkas</span>
+                            <span>Tambahkan ke Pantry</span>
                         </button>
                     </form>
                 </div>
 
                 <!-- Quick Button to view Pantry -->
                 <div class="tracker-summary-card" style="margin-bottom: 20px; text-align: center; padding: 18px;">
-                    <div style="font-size: 14px; font-weight: 700; color: #34d399; margin-bottom: 6px;">🧺 Cek Pantry Anda Sekarang</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #34d399; margin-bottom: 6px;">Pantry Anda</div>
                     <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Bahan yang baru Anda masukkan langsung tersedia di tab Pantry dan siap dicentang untuk mencari resep masakan yang cocok.</p>
                     <button class="btn-primary" onclick="switchToTab('pantry-tab')" style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; font-size: 13px;">
-                        <span>🧺 Buka & Lihat Kulkas Pantry</span>
+                        <span>Buka Pantry</span>
                     </button>
                 </div>
 
                 <!-- Daftar Bahan yang Tersedia di Kulkas -->
                 <div class="section-header" style="margin-bottom: 12px;">
-                    <h3 class="section-title" style="font-size: 15px;">📋 Daftar Bahan di Pantry Saat Ini</h3>
+                    <h3 class="section-title" style="font-size: 15px;">Daftar Bahan Saat Ini</h3>
                 </div>
                 <div id="all-ingredients-summary-list">
                     <!-- Rendered via JavaScript -->
@@ -256,23 +264,18 @@
         <!-- Bottom Navigation Tabs Bar -->
         <nav class="bottom-nav">
             <button class="nav-item active" data-tab="pantry-tab">
-                <span class="nav-icon">🧺</span>
                 <span>Pantry<span class="nav-badge" id="nav-pantry-badge">0</span></span>
             </button>
             <button class="nav-item" data-tab="recipes-tab">
-                <span class="nav-icon">🍳</span>
                 <span>Resep</span>
             </button>
             <button class="nav-item" data-tab="tracker-tab">
-                <span class="nav-icon">📊</span>
                 <span>Tracker</span>
             </button>
             <button class="nav-item" data-tab="profile-tab">
-                <span class="nav-icon">🧮</span>
                 <span>Kalkulator</span>
             </button>
             <button class="nav-item" data-tab="shopping-tab">
-                <span class="nav-icon">🥬</span>
                 <span>+ Bahan</span>
             </button>
         </nav>
@@ -282,13 +285,13 @@
     <!-- Recipe Detail Modal -->
     <div id="recipe-modal" class="modal-overlay">
         <div class="modal-card">
-            <button class="modal-close" onclick="closeModal()">✕</button>
+            <button class="modal-close" onclick="closeModal()">Tutup</button>
             <h3 id="modal-recipe-title" style="font-size: 18px; margin-bottom: 14px; color: var(--text-main);"></h3>
             
-            <h4 style="font-size: 14px; color: #60a5fa; margin-bottom: 8px;">🛒 Bahan-Bahan & Rincian Kalori:</h4>
+            <h4 style="font-size: 14px; color: #60a5fa; margin-bottom: 8px;">Bahan & Rincian Kalori</h4>
             <ul id="modal-ingredients-list" style="padding-left: 20px; font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6;"></ul>
 
-            <h4 style="font-size: 14px; color: #34d399; margin-bottom: 8px;">👨‍🍳 Langkah-Langkah Memasak:</h4>
+            <h4 style="font-size: 14px; color: #34d399; margin-bottom: 8px;">Langkah Memasak</h4>
             <div id="modal-instructions" style="font-size: 13px; color: var(--text-main); line-height: 1.7; background: rgba(15,23,42,0.6); padding: 12px; border-radius: 12px; border: 1px solid var(--card-border);"></div>
         </div>
     </div>

@@ -6,6 +6,7 @@ Menguji registrasi, hashing password, login, update profile, dan database SQLite
 import unittest
 import os
 import tempfile
+from datetime import date, timedelta
 from services.auth_service import AuthService
 
 
@@ -142,6 +143,20 @@ class TestAuthService(unittest.TestCase):
         self.assertEqual(profile["height"], 0.0)
         self.assertEqual(profile["age"], 0)
         self.assertEqual(profile["goal"], "maintain")
+
+    def test_activity_days_are_tracked_once_per_day(self):
+        """Usage tracking counts distinct active dates and persists them per user."""
+        user = self.auth_service.register("active_user", "password123")
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+
+        self.assertEqual(self.auth_service.record_activity_day(user["id"], today), 1)
+        self.assertEqual(self.auth_service.record_activity_day(user["id"], today), 1)
+        self.assertEqual(self.auth_service.record_activity_day(user["id"], yesterday), 2)
+
+        profile = self.auth_service.get_user_by_id(user["id"])
+        self.assertEqual(profile["active_days"], 2)
+        self.assertTrue(profile["created_at"])
 
     def test_accounts_have_independent_bmr_calculations(self):
         """Memverifikasi bahwa perhitungan BMR antar akun terisolasi dan tidak saling menimpa."""
