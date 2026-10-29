@@ -204,7 +204,7 @@ body {
 
 .search-input {
     width: 100%;
-    padding: 12px 16px 12px 42px;
+    padding: 12px 16px;
     background: rgba(30, 41, 59, 0.8);
     border: 1px solid var(--card-border);
     border-radius: 14px;
@@ -1330,6 +1330,19 @@ body {
 .auth-input:focus {
     border-color: #555555;
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.auth-input,
+.auth-input:focus {
+    background: #ffffff;
+    color: #171717;
+}
+
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+    -webkit-text-fill-color: #171717;
 }
 
 .category-group,
