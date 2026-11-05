@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderIngredientsSummaryList();
     updateTrackerUI();
     updateProfileUI();
+    initCookingCalculator();
 });
 
 // ==========================================
@@ -372,6 +373,7 @@ async function loadIngredients() {
     }
     renderPantryGrid();
     renderIngredientsSummaryList();
+    populateCookingIngredientSelect();
 }
 
 function renderPantryGrid(filterText = '') {
@@ -840,6 +842,360 @@ async function saveProfile(e) {
     updateProfileUI();
     updateTrackerUI();
     alert('Profil dan target kalori harian berhasil diperbarui.');
+}
+
+// ==========================================
+// KALKULATOR TAKARAN MASAKAN & NUTRISI (PORTION CALCULATOR)
+// ==========================================
+let cookingRecipeItems = [];
+
+const INGREDIENT_NUTRITION_PRESETS = {
+    "dada ayam": { cal: 165.0, protein: 31.0, carbs: 0.0, fat: 3.6, unit: "gram", defaultAmount: 150 },
+    "daging ayam": { cal: 190.0, protein: 27.0, carbs: 0.0, fat: 8.0, unit: "gram", defaultAmount: 150 },
+    "daging sapi": { cal: 250.0, protein: 26.0, carbs: 0.0, fat: 15.0, unit: "gram", defaultAmount: 100 },
+    "telur ayam": { cal: 155.0, protein: 13.0, carbs: 1.1, fat: 11.0, unit: "butir", defaultAmount: 2 },
+    "tahu putih": { cal: 76.0, protein: 8.0, carbs: 1.9, fat: 4.8, unit: "gram", defaultAmount: 100 },
+    "tempe": { cal: 190.0, protein: 19.0, carbs: 9.4, fat: 11.0, unit: "gram", defaultAmount: 100 },
+    "kangkung": { cal: 19.0, protein: 2.6, carbs: 3.1, fat: 0.2, unit: "ikat", defaultAmount: 1 },
+    "bayam": { cal: 23.0, protein: 2.9, carbs: 3.6, fat: 0.4, unit: "ikat", defaultAmount: 1 },
+    "bawang merah & putih": { cal: 40.0, protein: 1.5, carbs: 9.0, fat: 0.1, unit: "siung", defaultAmount: 3 },
+    "bawang merah": { cal: 40.0, protein: 1.4, carbs: 9.0, fat: 0.1, unit: "siung", defaultAmount: 3 },
+    "bawang putih": { cal: 149.0, protein: 6.4, carbs: 33.0, fat: 0.5, unit: "siung", defaultAmount: 2 },
+    "cabai red": { cal: 40.0, protein: 1.9, carbs: 8.8, fat: 0.4, unit: "buah", defaultAmount: 5 },
+    "cabai": { cal: 40.0, protein: 1.9, carbs: 8.8, fat: 0.4, unit: "buah", defaultAmount: 5 },
+    "wortel": { cal: 41.0, protein: 0.9, carbs: 9.6, fat: 0.2, unit: "gram", defaultAmount: 100 },
+    "tomat": { cal: 18.0, protein: 0.9, carbs: 3.9, fat: 0.2, unit: "buah", defaultAmount: 1 },
+    "kecap manis": { cal: 150.0, protein: 2.0, carbs: 35.0, fat: 0.0, unit: "sdm", defaultAmount: 1 },
+    "minyak": { cal: 884.0, protein: 0.0, carbs: 0.0, fat: 100.0, unit: "sdm", defaultAmount: 1 },
+    "nasi": { cal: 130.0, protein: 2.7, carbs: 28.0, fat: 0.3, unit: "gram", defaultAmount: 150 }
+};
+
+const UNIT_TO_GRAMS = {
+    "gram": 1.0,
+    "g": 1.0,
+    "kg": 1000.0,
+    "siung": 5.0,
+    "butir": 50.0,
+    "sdm": 15.0,
+    "sdt": 5.0,
+    "ikat": 150.0,
+    "potong": 50.0,
+    "buah": 50.0
+};
+
+function switchCalcSubtab(tab) {
+    const btnCooking = document.getElementById('btn-subtab-cooking');
+    const btnBmr = document.getElementById('btn-subtab-bmr');
+    const viewCooking = document.getElementById('cooking-calc-view');
+    const viewBmr = document.getElementById('bmr-calc-view');
+
+    if (tab === 'cooking') {
+        if (btnCooking) btnCooking.classList.add('active');
+        if (btnBmr) btnBmr.classList.remove('active');
+        if (viewCooking) viewCooking.style.display = 'block';
+        if (viewBmr) viewBmr.style.display = 'none';
+    } else {
+        if (btnBmr) btnBmr.classList.add('active');
+        if (btnCooking) btnCooking.classList.remove('active');
+        if (viewCooking) viewCooking.style.display = 'none';
+        if (viewBmr) viewBmr.style.display = 'block';
+    }
+}
+
+function initCookingCalculator() {
+    populateCookingIngredientSelect();
+    updateLivePortionPreview();
+    renderCookingIngredientsList();
+}
+
+function populateCookingIngredientSelect() {
+    const sel = document.getElementById('cooking-ing-select');
+    if (!sel) return;
+
+    const currentVal = sel.value;
+    sel.innerHTML = '';
+
+    // Ambil bahan dari pantry pengguna
+    const pantryItems = [];
+    for (const [category, items] of Object.entries(allIngredientsCategorized)) {
+        items.forEach(i => {
+            if (!pantryItems.some(p => p.name.toLowerCase() === i.name.toLowerCase())) {
+                pantryItems.push({ name: i.name, cal: i.calories_per_100g, category });
+            }
+        });
+    }
+
+    // Tambah optgroup untuk bahan di Pantry
+    if (pantryItems.length > 0) {
+        const groupPantry = document.createElement('optgroup');
+        groupPantry.label = '🧺 Bahan dari Kulkas / Pantry:';
+        pantryItems.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.name;
+            opt.textContent = `${item.name} (${item.category})`;
+            groupPantry.appendChild(opt);
+        });
+        sel.appendChild(groupPantry);
+    }
+
+    // Tambah optgroup untuk preset umum
+    const groupCommon = document.createElement('optgroup');
+    groupCommon.label = '🍳 Bahan Masakan Umum:';
+    const commonNames = ["Dada Ayam", "Daging Sapi", "Telur Ayam", "Tahu Putih", "Tempe", "Kangkung", "Bawang Merah & Putih", "Cabai Red", "Wortel", "Kecap Manis", "Minyak"];
+    commonNames.forEach(name => {
+        if (!pantryItems.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            groupCommon.appendChild(opt);
+        }
+    });
+    sel.appendChild(groupCommon);
+
+    // Opsi kustom
+    const optCustom = document.createElement('option');
+    optCustom.value = '__custom__';
+    optCustom.textContent = '➕ [Ketik Nama Bahan Kustom Lainnya]';
+    sel.appendChild(optCustom);
+
+    if (currentVal && Array.from(sel.options).some(o => o.value === currentVal)) {
+        sel.value = currentVal;
+    }
+    onCookingIngredientChange();
+}
+
+function onCookingIngredientChange() {
+    const sel = document.getElementById('cooking-ing-select');
+    const customBox = document.getElementById('cooking-custom-name-box');
+    const calInput = document.getElementById('cooking-cal-100');
+    const proteinInput = document.getElementById('cooking-protein-100');
+    const unitSelect = document.getElementById('cooking-ing-unit');
+    const amountInput = document.getElementById('cooking-ing-amount');
+
+    if (!sel) return;
+
+    if (sel.value === '__custom__') {
+        if (customBox) customBox.style.display = 'block';
+        if (calInput) calInput.value = '50';
+        if (proteinInput) proteinInput.value = '2.0';
+        updateLivePortionPreview();
+        return;
+    }
+
+    if (customBox) customBox.style.display = 'none';
+
+    const nameLower = sel.value.toLowerCase();
+    let preset = INGREDIENT_NUTRITION_PRESETS[nameLower];
+    if (!preset) {
+        for (const [k, v] of Object.entries(INGREDIENT_NUTRITION_PRESETS)) {
+            if (nameLower.includes(k) || k.includes(nameLower)) {
+                preset = v;
+                break;
+            }
+        }
+    }
+
+    // Cari di pantry jika ada
+    let pantryCal = null;
+    for (const items of Object.values(allIngredientsCategorized)) {
+        const found = items.find(i => i.name.toLowerCase() === nameLower);
+        if (found) {
+            pantryCal = found.calories_per_100g;
+            break;
+        }
+    }
+
+    if (calInput) calInput.value = pantryCal !== null ? pantryCal : (preset ? preset.cal : 50);
+    if (proteinInput) proteinInput.value = preset ? preset.protein : 2.0;
+
+    if (preset && preset.unit && unitSelect) {
+        unitSelect.value = preset.unit;
+        if (amountInput && preset.defaultAmount) {
+            amountInput.value = preset.defaultAmount;
+        }
+    }
+
+    updateLivePortionPreview();
+}
+
+function onCookingUnitChange() {
+    updateLivePortionPreview();
+}
+
+function updateLivePortionPreview() {
+    const sel = document.getElementById('cooking-ing-select');
+    const customNameInput = document.getElementById('cooking-custom-name');
+    const amountInput = document.getElementById('cooking-ing-amount');
+    const unitSelect = document.getElementById('cooking-ing-unit');
+    const calInput = document.getElementById('cooking-cal-100');
+    const proteinInput = document.getElementById('cooking-protein-100');
+    const previewEl = document.getElementById('cooking-live-preview');
+
+    if (!previewEl) return;
+
+    const rawName = (sel && sel.value === '__custom__') 
+        ? (customNameInput ? customNameInput.value.trim() || 'Bahan Kustom' : 'Bahan')
+        : (sel ? sel.value : 'Bahan');
+
+    const amount = parseFloat(amountInput ? amountInput.value : 0) || 0;
+    const unit = unitSelect ? unitSelect.value : 'gram';
+    const cal100 = parseFloat(calInput ? calInput.value : 0) || 0;
+    const p100 = parseFloat(proteinInput ? proteinInput.value : 0) || 0;
+
+    const unitFactor = UNIT_TO_GRAMS[unit] || 1.0;
+    const totalGrams = Math.round(amount * unitFactor * 10) / 10;
+    const factor = totalGrams / 100.0;
+    const totalCal = Math.round(factor * cal100 * 10) / 10;
+    const totalP = Math.round(factor * p100 * 10) / 10;
+
+    const unitLabel = unit === 'gram' ? `${totalGrams}g` : `${amount} ${unit} (${totalGrams}g)`;
+    previewEl.innerHTML = `👉 <strong>${unitLabel} ${rawName}</strong> = <span style="color:#34d399;">${totalCal} kcal</span> • <span style="color:#60a5fa;">${totalP}g Protein</span>`;
+}
+
+function handleAddCookingIngredient(e) {
+    e.preventDefault();
+
+    const sel = document.getElementById('cooking-ing-select');
+    const customNameInput = document.getElementById('cooking-custom-name');
+    const amountInput = document.getElementById('cooking-ing-amount');
+    const unitSelect = document.getElementById('cooking-ing-unit');
+    const calInput = document.getElementById('cooking-cal-100');
+    const proteinInput = document.getElementById('cooking-protein-100');
+
+    let name = sel ? sel.value : '';
+    if (name === '__custom__') {
+        name = customNameInput ? customNameInput.value.trim() : '';
+        if (!name) {
+            alert('Harap ketikkan nama bahan makanan kustom.');
+            return;
+        }
+    }
+
+    const amount = parseFloat(amountInput ? amountInput.value : 0);
+    if (!amount || amount <= 0) {
+        alert('Harap masukkan takaran yang valid (lebih dari 0).');
+        return;
+    }
+
+    const unit = unitSelect ? unitSelect.value : 'gram';
+    const cal100 = parseFloat(calInput ? calInput.value : 50) || 50;
+    const p100 = parseFloat(proteinInput ? proteinInput.value : 2) || 2;
+
+    const unitFactor = UNIT_TO_GRAMS[unit] || 1.0;
+    const totalGrams = Math.round(amount * unitFactor * 10) / 10;
+    const factor = totalGrams / 100.0;
+    const calories = Math.round(factor * cal100 * 10) / 10;
+    const protein = Math.round(factor * p100 * 10) / 10;
+    const carbs = Math.round(factor * (cal100 > 100 ? 5 : 2) * 10) / 10;
+    const fat = Math.round(factor * (cal100 > 150 ? 8 : 1) * 10) / 10;
+
+    cookingRecipeItems.push({
+        id: Date.now() + Math.random(),
+        name,
+        amount,
+        unit,
+        totalGrams,
+        calories,
+        protein,
+        carbs,
+        fat,
+        cal_per_100g: cal100,
+        protein_per_100g: p100
+    });
+
+    renderCookingIngredientsList();
+}
+
+function renderCookingIngredientsList() {
+    const container = document.getElementById('cooking-ingredients-list');
+    const totCalEl = document.getElementById('cooking-total-cal');
+    const totPEl = document.getElementById('cooking-total-protein');
+    const totCEl = document.getElementById('cooking-total-carbs');
+    const totFEl = document.getElementById('cooking-total-fat');
+    const totWEl = document.getElementById('cooking-total-weight');
+
+    let totCal = 0, totP = 0, totC = 0, totF = 0, totG = 0;
+    cookingRecipeItems.forEach(item => {
+        totCal += item.calories;
+        totP += item.protein;
+        totC += item.carbs;
+        totF += item.fat;
+        totG += item.totalGrams;
+    });
+
+    totCal = Math.round(totCal * 10) / 10;
+    totP = Math.round(totP * 10) / 10;
+    totC = Math.round(totC * 10) / 10;
+    totF = Math.round(totF * 10) / 10;
+    totG = Math.round(totG * 10) / 10;
+
+    if (totCalEl) totCalEl.textContent = `${totCal} kcal`;
+    if (totPEl) totPEl.textContent = `${totP}g`;
+    if (totCEl) totCEl.textContent = `${totC}g`;
+    if (totFEl) totFEl.textContent = `${totF}g`;
+    if (totWEl) totWEl.textContent = `${totG}g`;
+
+    if (!container) return;
+
+    if (cookingRecipeItems.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 24px; color: var(--text-muted); background: var(--card-bg); border-radius: 14px; border: 1px dashed var(--card-border); font-size: 13px;">
+                Belum ada bahan masakan ditambahkan. Pilih bahan dan masukkan takaran di atas.
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = '';
+    cookingRecipeItems.forEach((item, idx) => {
+        const card = document.createElement('div');
+        card.className = 'portion-item-card';
+        const unitDesc = item.unit === 'gram' ? `${item.totalGrams}g` : `${item.amount} ${item.unit} (${item.totalGrams}g)`;
+        card.innerHTML = `
+            <div>
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-main);">${item.name}</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">
+                    <span>Takaran: <strong style="color:var(--text-main);">${unitDesc}</strong></span> • 
+                    <span style="color: #34d399; font-weight: 600;">🔥 ${item.calories} kcal</span> • 
+                    <span style="color: #60a5fa; font-weight: 600;">🥩 ${item.protein}g Protein</span>
+                </div>
+            </div>
+            <button onclick="removeCookingIngredient(${idx})" style="background: none; border: none; color: #ef4444; font-size: 16px; cursor: pointer; padding: 4px 8px;" title="Hapus">✕</button>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function removeCookingIngredient(index) {
+    cookingRecipeItems.splice(index, 1);
+    renderCookingIngredientsList();
+}
+
+function resetCookingIngredients() {
+    cookingRecipeItems = [];
+    renderCookingIngredientsList();
+}
+
+async function logCookingDishToTracker() {
+    if (cookingRecipeItems.length === 0) {
+        alert('Harap tambahkan minimal 1 bahan masakan terlebih dahulu.');
+        return;
+    }
+
+    let totCal = 0, totP = 0, totC = 0, totF = 0;
+    cookingRecipeItems.forEach(item => {
+        totCal += item.calories;
+        totP += item.protein;
+        totC += item.carbs;
+        totF += item.fat;
+    });
+
+    const dishNameInput = document.getElementById('cooking-dish-name');
+    const customTitle = dishNameInput ? dishNameInput.value.trim() : '';
+    const title = customTitle || `Masakan Buatan (${cookingRecipeItems.map(i => i.name).slice(0, 2).join(' & ')})`;
+
+    await logRecipeToTracker(title, Math.round(totCal), Math.round(totP), Math.round(totC), Math.round(totF));
+    switchToTab('tracker-tab');
 }
 
 // ==========================================

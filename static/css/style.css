@@ -1497,3 +1497,62 @@ body {
 .app-viewport [style*="linear-gradient"] {
     background: #171717 !important;
 }
+/* ==========================================
+   PORTION & COOKING CALCULATOR STYLES
+   ========================================== */
+.calc-switcher {
+    display: flex;
+    background: rgba(15, 23, 42, 0.6);
+    padding: 4px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    border: 1px solid var(--card-border);
+    gap: 4px;
+}
+
+.calc-subtab-btn {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: var(--font-family);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.calc-subtab-btn:hover {
+    color: var(--text-main);
+}
+
+.calc-subtab-btn.active {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.portion-item-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+
+.portion-item-card:hover {
+    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(15, 23, 42, 0.75);
+}
+
+
