@@ -14,8 +14,11 @@ from datetime import date
 from typing import Dict, Any, Optional
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Path database SQLite
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cookfit.db')
+# Path database SQLite (mendukung lingkungan serverless read-only seperti Vercel)
+if os.environ.get('VERCEL'):
+    DB_PATH = '/tmp/cookfit.db'
+else:
+    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cookfit.db')
 
 
 class AuthService:
