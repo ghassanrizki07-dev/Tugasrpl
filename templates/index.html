@@ -6,7 +6,7 @@
     <title>CookFit - Rekomendasi Resep & Penghitung Kalori Harian</title>
     <meta name="description" content="Aplikasi mobile web CookFit untuk rekomendasi resep berdasarkan isi kulkas & kalkulator nutrisi harian.">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
@@ -296,6 +296,6 @@
     </div>
 
     <!-- Custom JS -->
-    <script src="/static/js/app.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

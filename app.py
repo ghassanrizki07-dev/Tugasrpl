@@ -9,7 +9,7 @@ Mengintegrasikan 6 Fitur Utama (User Stories):
 6. US-5: Web Application Interface & REST API Gateway (/)
 """
 
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_from_directory
 from functools import wraps
 from services.recipe_service import RecipeService
 from services.calorie_service import CalorieService
@@ -19,7 +19,7 @@ from services.auth_service import AuthService
 import os
 import secrets
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 
 # Inisialisasi Service untuk seluruh fitur MVP
@@ -499,6 +499,13 @@ def clear_shopping_list():
     
     shopping_service.clear_all()
     return jsonify({'status': 'success', 'message': 'Daftar belanja berhasil dikosongkan.'})
+
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Fallback route untuk menyajikan file statis (CSS/JS) di lingkungan serverless Vercel."""
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    return send_from_directory(static_dir, filename)
 
 
 if __name__ == '__main__':
