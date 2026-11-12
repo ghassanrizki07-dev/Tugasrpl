@@ -18,9 +18,14 @@ from services.shopping_service import ShoppingService
 from services.auth_service import AuthService
 import os
 import secrets
+from whitenoise import WhiteNoise
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+
+# Gunakan WhiteNoise agar file statis (CSS/JS) di-serve langsung di level WSGI secara andal (100% kompatibel Vercel)
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+app.wsgi_app = WhiteNoise(app.wsgi_app, root=static_dir, prefix='static/')
 
 # Inisialisasi Service untuk seluruh fitur MVP
 recipe_service = RecipeService()
