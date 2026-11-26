@@ -9,6 +9,7 @@ Menguji kontrak HTTP, status code, session authentication, dan validasi data unt
 5. US-5: Web Mobile App View (/) & Login View (/login)
 """
 
+import os
 import unittest
 import json
 from app import app, calorie_service, tracker_service, shopping_service, auth_service
@@ -468,6 +469,170 @@ class TestFlaskEndpoints(unittest.TestCase):
             content_type='application/json'
         )
         self.assertEqual(res_bad.status_code, 400)
+
+
+def _make_unauth_route_test(method, path):
+    """Membangun test case parameterized bahwa endpoint terlindungi menolak request tanpa login."""
+    def test_fn(self):
+        res = self.client.open(path, method=method)
+        self.assertEqual(res.status_code, 401)
+    return test_fn
+
+
+class TestFlaskSecurityAndPostDeployFixes(unittest.TestCase):
+    def setUp(self):
+        self.app = app
+        self.app.config['TESTING'] = True
+        self.client = self.app.test_client()
+        self.root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        calorie_service.clear_logs()
+        tracker_service.clear_logs()
+        shopping_service.clear_all()
+        try:
+            auth_service.register("postdeploy_tester", "password123", "PostDeploy Tester")
+        except ValueError:
+            pass
+
+    def _login(self):
+        user = auth_service.login("postdeploy_tester", "password123")
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = user['id']
+            sess['username'] = user['username']
+            sess['display_name'] = user['display_name']
+        return user
+
+    def test_static_css_and_js_served_with_http_200(self):
+        """Memverifikasi file CSS dan JS utama disajikan HTTP 200 untuk deployment Vercel."""
+        res_css = self.client.get('/static/css/style.css')
+        res_js = self.client.get('/static/js/app.js')
+        try:
+            self.assertEqual(res_css.status_code, 200)
+            self.assertEqual(res_js.status_code, 200)
+        finally:
+            res_css.close()
+            res_js.close()
+
+    def test_public_static_assets_stay_synced_with_static_folder(self):
+        """Memverifikasi salinan asset CDN di public/ identik dengan folder static/."""
+        pairs = [
+            ('static/css/style.css', 'public/css/style.css'),
+            ('static/css/style.css', 'public/static/css/style.css'),
+            ('static/js/app.js', 'public/js/app.js'),
+            ('static/js/app.js', 'public/static/js/app.js'),
+        ]
+        for src_rel, dst_rel in pairs:
+            with open(os.path.join(self.root_dir, src_rel), 'rb') as f1:
+                with open(os.path.join(self.root_dir, dst_rel), 'rb') as f2:
+                    self.assertEqual(f1.read(), f2.read(), f"Asset {dst_rel} tidak sinkron dengan {src_rel}")
+
+    def test_python_version_file_configured_for_vercel(self):
+        """Memverifikasi .python-version tersedia agar Vercel tidak memberi warning runtime."""
+        py_ver_path = os.path.join(self.root_dir, '.python-version')
+        self.assertTrue(os.path.exists(py_ver_path))
+        with open(py_ver_path, 'r', encoding='utf-8') as f:
+            self.assertTrue(f.read().strip().startswith('3.12'))
+
+    def test_session_cookie_security_flags_configured(self):
+        """Memverifikasi SESSION_COOKIE_HTTPONLY dan SAMESITE aktif."""
+        self.assertTrue(self.app.config.get('SESSION_COOKIE_HTTPONLY'))
+        self.assertEqual(self.app.config.get('SESSION_COOKIE_SAMESITE'), 'Lax')
+
+    def test_frontend_js_escapes_html_and_uses_valid_presets(self):
+        """Memverifikasi frontend melakukan XSS escaping, typo Cabai Merah diperbaiki, dan logCookingDishToTracker valid."""
+        js_path = os.path.join(self.root_dir, 'static', 'js', 'app.js')
+        with open(js_path, 'r', encoding='utf-8') as f:
+            js_src = f.read()
+        self.assertIn('function escapeHtml', js_src)
+        self.assertIn('escapeHtml(item.name)', js_src)
+        self.assertIn('escapeHtml(log.recipe_title)', js_src)
+        self.assertNotIn('cabai red', js_src.lower())
+        self.assertNotIn('await logRecipeToTracker(title,', js_src)
+
+    def test_post_ingredients_rejects_negative_and_over_limit_calories(self):
+        """POST /api/ingredients menolak calories_per_100g < 0, > 1000, atau tipe name invalid."""
+        self._login()
+        for bad_payload in (
+            {"name": "Minyak Negatif", "category": "Sayuran & Bumbu", "calories_per_100g": -50},
+            {"name": "Kalori Berlebih", "category": "Sayuran & Bumbu", "calories_per_100g": 1500},
+            {"name": 12345, "category": "Sayuran & Bumbu", "calories_per_100g": 50},
+        ):
+            res = self.client.post('/api/ingredients', json=bad_payload)
+            self.assertEqual(res.status_code, 400)
+
+    def test_calculate_cooking_handles_malformed_items_without_500(self):
+        """POST /api/calculate-cooking menolak item non-dict dengan HTTP 400 bukan 500."""
+        self._login()
+        res = self.client.post('/api/calculate-cooking', json={"items": ["ayam"]})
+        self.assertEqual(res.status_code, 400)
+
+    def test_calculate_portion_accepts_string_numbers_and_rejects_negative_cal(self):
+        """POST /api/calculate-cooking/portion menerima angka string dan menolak cal_per_100g negatif."""
+        self._login()
+        res_ok = self.client.post('/api/calculate-cooking/portion', json={
+            "name": "Dada Ayam", "amount": 100, "unit": "gram", "cal_per_100g": "200"
+        })
+        self.assertEqual(res_ok.status_code, 200)
+        self.assertEqual(json.loads(res_ok.data)["data"]["calories"], 200.0)
+
+        res_bad = self.client.post('/api/calculate-cooking/portion', json={
+            "name": "Dada Ayam", "amount": 100, "unit": "gram", "cal_per_100g": -10
+        })
+        self.assertEqual(res_bad.status_code, 400)
+
+    def test_daily_summary_tdee_zero_safe_and_negative_rejected(self):
+        """GET /api/daily-summary aman saat target_tdee=0 dan menolak negatif/non-angka."""
+        self._login()
+        res_zero = self.client.get('/api/daily-summary?target_tdee=0')
+        self.assertEqual(res_zero.status_code, 200)
+        self.assertEqual(json.loads(res_zero.data)["data"]["calorie_percentage"], 0.0)
+
+        res_neg = self.client.get('/api/daily-summary?target_tdee=-500')
+        self.assertEqual(res_neg.status_code, 400)
+
+        res_str = self.client.get('/api/daily-summary?target_tdee=abc')
+        self.assertEqual(res_str.status_code, 400)
+
+    def test_non_dict_json_body_handled_safely_without_500(self):
+        """Payload JSON array [] tidak menyebabkan crash AttributeError 500 pada endpoint."""
+        self._login()
+        res_match = self.client.post('/api/match-recipes', data='[1, 2, 3]', content_type='application/json')
+        self.assertEqual(res_match.status_code, 200)
+
+        res_bmr = self.client.post('/api/calculate-bmr', data='[1, 2, 3]', content_type='application/json')
+        self.assertEqual(res_bmr.status_code, 400)
+
+        res_login = self.client.post('/api/auth/login', data='[1, 2]', content_type='application/json')
+        self.assertEqual(res_login.status_code, 401)
+
+    def test_auth_duplicate_register_returns_400_and_list_body_rejected(self):
+        """Registrasi duplikat atau payload array [] mengembalikan HTTP 400."""
+        res_arr = self.client.post('/api/auth/register', data='["u","p"]', content_type='application/json')
+        self.assertEqual(res_arr.status_code, 400)
+        res_dup = self.client.post('/api/auth/register', json={"username": "postdeploy_tester", "password": "password123"})
+        self.assertEqual(res_dup.status_code, 400)
+
+    def test_delete_nonexistent_ingredient_and_shopping_item_return_404(self):
+        """DELETE item tidak ditemukan mengembalikan HTTP 404."""
+        self._login()
+        self.assertEqual(self.client.delete('/api/ingredients/99999').status_code, 404)
+        self.assertEqual(self.client.delete('/api/shopping-list/99999').status_code, 404)
+
+    def test_generate_shopping_list_rejects_non_list_missing_ingredients(self):
+        """POST /api/shopping-list/generate menolak missing_ingredients bukan list dengan HTTP 400."""
+        self._login()
+        res = self.client.post('/api/shopping-list/generate', json={"missing_ingredients": "bukan_list"})
+        self.assertEqual(res.status_code, 400)
+
+
+for _name, _method, _path in [
+    ("unauth_get_recipes", "GET", "/api/recipes"),
+    ("unauth_get_daily_logs", "GET", "/api/daily-logs"),
+    ("unauth_get_daily_summary", "GET", "/api/daily-summary"),
+    ("unauth_get_shopping_list", "GET", "/api/shopping-list"),
+    ("unauth_post_calculate_bmr", "POST", "/api/calculate-bmr"),
+    ("unauth_post_calculate_cooking", "POST", "/api/calculate-cooking"),
+]:
+    setattr(TestFlaskSecurityAndPostDeployFixes, f"test_{_name}", _make_unauth_route_test(_method, _path))
 
 
 if __name__ == '__main__':

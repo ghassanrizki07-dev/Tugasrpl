@@ -14,13 +14,15 @@ VALID_MEAL_TYPES = ["Sarapan", "Makan Siang", "Makan Malam", "Camilan"]
 
 
 class TrackerService:
-    def __init__(self):
+    def __init__(self, persistent_store=None):
         self._daily_logs: List[Dict[str, Any]] = []
         self._next_id: int = 1
+        self.persistent_store = persistent_store
 
     def add_log(self, recipe_title: str, calories: float, protein: float = 0.0,
                 carbs: float = 0.0, fat: float = 0.0,
-                meal_type: str = "Makan Siang") -> Dict[str, Any]:
+                meal_type: str = "Makan Siang",
+                user_id: int = None) -> Dict[str, Any]:
         """
         Menambahkan entri konsumsi makanan baru ke log harian.
         Validasi: Nama makanan tidak boleh kosong, kalori & makro harus numerik >= 0.
@@ -53,14 +55,24 @@ class TrackerService:
             "carbs": round(c, 1),
             "fat": round(f, 1)
         }
+        if self.persistent_store:
+            if user_id is None:
+                raise ValueError("User ID dibutuhkan untuk menyimpan catatan makan.")
+            entry["id"] = None
+            return self.persistent_store.add_daily_log(user_id, entry)
         self._daily_logs.insert(0, entry)
         return entry
 
-    def get_logs(self, meal_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_logs(self, meal_type: Optional[str] = None,
+                 user_id: int = None) -> List[Dict[str, Any]]:
         """
         Mengambil riwayat log makanan.
         Dapat difilter berdasarkan jenis jam makan jika parameter meal_type diberikan.
         """
+        if self.persistent_store:
+            if user_id is None:
+                raise ValueError("User ID dibutuhkan untuk mengambil catatan makan.")
+            return self.persistent_store.get_daily_logs(user_id, meal_type)
         if meal_type:
             target = meal_type.strip().lower()
             return [l for l in self._daily_logs if l["meal_type"].lower() == target]
@@ -73,23 +85,29 @@ class TrackerService:
                 return dict(item)
         return None
 
-    def delete_log(self, log_id: int) -> bool:
+    def delete_log(self, log_id: int, user_id: int = None) -> bool:
         """Menghapus entri log makan berdasarkan ID."""
+        if self.persistent_store:
+            if user_id is None:
+                raise ValueError("User ID dibutuhkan untuk menghapus catatan makan.")
+            return self.persistent_store.delete_daily_log(user_id, log_id)
         for idx, item in enumerate(self._daily_logs):
             if item["id"] == log_id:
                 del self._daily_logs[idx]
                 return True
         return False
 
-    def get_summary(self, target_tdee: Optional[int] = None) -> Dict[str, Any]:
+    def get_summary(self, target_tdee: Optional[int] = None,
+                    user_id: int = None) -> Dict[str, Any]:
         """
         Menghitung total akumulasi harian dan perbandingan terhadap target TDEE.
         Mengembalikan status anggaran: under_budget, on_target, atau over_budget.
         """
-        total_cal = round(sum(item["calories"] for item in self._daily_logs), 1)
-        total_p = round(sum(item["protein"] for item in self._daily_logs), 1)
-        total_c = round(sum(item["carbs"] for item in self._daily_logs), 1)
-        total_f = round(sum(item["fat"] for item in self._daily_logs), 1)
+        logs = self.get_logs(user_id=user_id) if self.persistent_store else self._daily_logs
+        total_cal = round(sum(item["calories"] for item in logs), 1)
+        total_p = round(sum(item["protein"] for item in logs), 1)
+        total_c = round(sum(item["carbs"] for item in logs), 1)
+        total_f = round(sum(item["fat"] for item in logs), 1)
 
         progress_pct = 0.0
         remaining_cal = None
@@ -110,14 +128,19 @@ class TrackerService:
             "total_protein": total_p,
             "total_carbs": total_c,
             "total_fat": total_f,
-            "total_entries": len(self._daily_logs),
+            "total_entries": len(logs),
             "target_tdee": target_tdee,
             "remaining_calories": remaining_cal,
             "calorie_percentage": progress_pct,
             "budget_status": status
         }
 
-    def clear_logs(self) -> None:
+    def clear_logs(self, user_id: int = None) -> None:
         """Mengosongkan seluruh entri jurnal (untuk testing atau reset harian)."""
+        if self.persistent_store:
+            if user_id is None:
+                raise ValueError("User ID dibutuhkan untuk menghapus catatan makan.")
+            self.persistent_store.clear_daily_logs(user_id)
+            return
         self._daily_logs.clear()
         self._next_id = 1

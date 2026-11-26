@@ -133,5 +133,114 @@ class TestTrackerServiceEngine(unittest.TestCase):
         self.assertEqual(len(self.tracker.get_logs()), 0)
 
 
+def _make_budget_threshold_test(calories, target_tdee, expected_pct, expected_status, expected_remaining):
+    """Membangun test case parameterized untuk threshold budget kalori."""
+    def test_fn(self):
+        if calories > 0:
+            self.tracker.add_log("Menu Uji", calories=calories)
+        summary = self.tracker.get_summary(target_tdee=target_tdee)
+        self.assertEqual(summary["calorie_percentage"], expected_pct)
+        self.assertEqual(summary["budget_status"], expected_status)
+        self.assertEqual(summary["remaining_calories"], expected_remaining)
+    return test_fn
+
+
+def _make_invalid_nutrition_test(kwargs):
+    """Membangun test case parameterized untuk input nutrisi invalid pada TrackerService."""
+    def test_fn(self):
+        with self.assertRaises(ValueError):
+            self.tracker.add_log("Menu Invalid", **kwargs)
+    return test_fn
+
+
+class TestTrackerServiceExtended(unittest.TestCase):
+    def setUp(self):
+        self.tracker = TrackerService()
+
+    def test_decimal_macro_rounding(self):
+        """Nilai kalori dan makro desimal dibulatkan ke 1 angka di belakang koma."""
+        entry = self.tracker.add_log("Salad", calories=123.456, protein=10.24, carbs=15.67, fat=3.14)
+        self.assertEqual(entry["calories"], 123.5)
+        self.assertEqual(entry["protein"], 10.2)
+        self.assertEqual(entry["carbs"], 15.7)
+        self.assertEqual(entry["fat"], 3.1)
+
+    def test_zero_calorie_log_allowed(self):
+        """Entri makanan/minuman nol kalori tetap diperbolehkan dicatat."""
+        entry = self.tracker.add_log("Air Mineral", calories=0, protein=0, carbs=0, fat=0)
+        self.assertEqual(entry["calories"], 0.0)
+        self.assertEqual(len(self.tracker.get_logs()), 1)
+
+    def test_empty_meal_type_defaults_to_makan_siang(self):
+        """Meal type kosong atau None default ke 'Makan Siang'."""
+        entry = self.tracker.add_log("Nasi Uduk", calories=300, meal_type="")
+        self.assertEqual(entry["meal_type"], "Makan Siang")
+
+    def test_filter_meal_type_case_insensitive_and_whitespace(self):
+        """Filter waktu makan bersifat case-insensitive dan mengabaikan spasi."""
+        self.tracker.add_log("Bubur", calories=200, meal_type="Sarapan")
+        self.tracker.add_log("Bakso", calories=400, meal_type="Makan Siang")
+        self.assertEqual(len(self.tracker.get_logs("  sarapan  ")), 1)
+        self.assertEqual(len(self.tracker.get_logs("SARAPAN")), 1)
+
+    def test_filter_nonexistent_meal_type_returns_empty(self):
+        """Filter waktu makan yang belum ada mengembalikan list kosong."""
+        self.tracker.add_log("Bubur", calories=200, meal_type="Sarapan")
+        self.assertEqual(self.tracker.get_logs("Tengah Malam"), [])
+
+    def test_empty_summary_zero_totals(self):
+        """Ringkasan saat log masih kosong bernilai nol tanpa error."""
+        summary = self.tracker.get_summary(target_tdee=2000)
+        self.assertEqual(summary["total_entries"], 0)
+        self.assertEqual(summary["total_calories"], 0.0)
+        self.assertEqual(summary["calorie_percentage"], 0.0)
+
+    def test_id_sequence_monotonic_after_delete(self):
+        """ID tetap bertambah secara berurutan meski entri sebelumnya dihapus."""
+        e1 = self.tracker.add_log("A", calories=100)
+        self.tracker.delete_log(e1["id"])
+        e2 = self.tracker.add_log("B", calories=150)
+        self.assertEqual(e2["id"], 2)
+
+    def test_get_log_by_id_returns_copy(self):
+        """Mutasi hasil get_log_by_id tidak merusak state internal tracker."""
+        e1 = self.tracker.add_log("Roti", calories=150)
+        fetched = self.tracker.get_log_by_id(e1["id"])
+        fetched["calories"] = 9999
+        self.assertEqual(self.tracker.get_log_by_id(e1["id"])["calories"], 150.0)
+
+    def test_logs_ordered_newest_first(self):
+        """Log terbaru muncul pada urutan pertama (index 0)."""
+        self.tracker.add_log("Pertama", calories=100)
+        self.tracker.add_log("Kedua", calories=200)
+        logs = self.tracker.get_logs()
+        self.assertEqual([l["recipe_title"] for l in logs], ["Kedua", "Pertama"])
+
+
+for _name, _cal, _tdee, _pct, _status, _rem in [
+    ("budget_under_threshold", 1899, 2000, 95.0, "on_target", 101.0),
+    ("budget_strict_under", 1800, 2000, 90.0, "under_budget", 200.0),
+    ("budget_exact_95_pct", 1900, 2000, 95.0, "on_target", 100.0),
+    ("budget_exact_105_pct", 2100, 2000, 105.0, "on_target", -100.0),
+    ("budget_over_105_pct", 2102, 2000, 105.1, "over_budget", -102.0),
+    ("budget_zero_tdee_untracked", 500, 0, 0.0, "untracked", None),
+]:
+    setattr(
+        TestTrackerServiceExtended,
+        f"test_{_name}",
+        _make_budget_threshold_test(_cal, _tdee, _pct, _status, _rem)
+    )
+
+for _name, _kwargs in [
+    ("invalid_negative_carbs", {"calories": 100, "carbs": -1}),
+    ("invalid_negative_fat", {"calories": 100, "fat": -0.5}),
+    ("invalid_non_numeric_calories", {"calories": "banyak"}),
+    ("invalid_non_numeric_protein", {"calories": 100, "protein": "x"}),
+    ("invalid_none_calories", {"calories": None}),
+    ("invalid_none_fat", {"calories": 100, "fat": None}),
+]:
+    setattr(TestTrackerServiceExtended, f"test_{_name}", _make_invalid_nutrition_test(_kwargs))
+
+
 if __name__ == "__main__":
     unittest.main()

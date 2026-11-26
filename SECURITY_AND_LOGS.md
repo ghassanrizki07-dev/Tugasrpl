@@ -12,16 +12,17 @@ Seluruh lapisan keamanan telah diuji secara otomatis melalui test suite (`tests/
 | :--- | :--- | :--- | :--- |
 | **Password Storage** | Menggunakan algoritma hash satu arah `generate_password_hash` dan `check_password_hash` (Werkzeug/PBKDF2/scrypt). Password mentah (plaintext) tidak pernah disimpan di database. | **PASSED** | `test_auth_service.py:test_register_success` |
 | **Session & Route Guard** | Decorator `@login_required` memproteksi seluruh halaman utama dan API endpoint internal (`/`, `/api/ingredients`, `/api/daily-logs`, dll). Request tanpa sesi ditolak (HTTP 302 / 401). | **PASSED** | `test_api_endpoints.py:test_unauthenticated_access_protection` |
-| **Isolasi Akun (Multi-User)** | Data profil, nilai BMR/TDEE, dan catatan harian NutriTracker diisolasi menggunakan `user_id`. Akun baru selalu dimulai dari nilai 0 tanpa membocorkan data akun lain. | **PASSED** | `test_auth_service.py:test_accounts_have_independent_bmr_calculations` |
-| **Pencegahan SQL Injection** | Semua query SQL menggunakan *parameterized queries* (`?` placeholder) via library bawaan SQLite3. | **PASSED** | `services/auth_service.py` |
+| **Isolasi Akun (Multi-User)** | Profil, log makan, daftar belanja, bahan custom, dan bahan tersembunyi dibatasi per `user_id`; perilaku ini diuji pada SQLite sementara. | **PASSED LOKAL; LIVE BELUM DIVERIFIKASI** | `tests/test_persistent_store.py`; deployment masih memerlukan `DATABASE_URL` PostgreSQL |
+| **Pencegahan SQL Injection** | Query menggunakan SQLAlchemy Core dan parameter binding, bukan interpolasi string SQL. | **PASSED** | `services/auth_service.py`, `services/persistent_store.py` |
 | **Validasi Input & Boundary** | Validasi input numerik non-negatif pada berat badan, tinggi badan, usia, gramasi bahan, dan nama bahan masakan. Menolak angka negatif, string kosong, dan format tidak valid dengan HTTP 400. | **PASSED** | `test_calorie_service.py:test_ac3_validation_and_invalid_inputs` |
 
 ---
 
 ## 2. Catatan Perubahan Relevan (Changelog)
 
-1. **Autentikasi & Database Akun SQLite (`cookfit.db`):**
-   - Menambahkan tabel `users` dengan penyimpanan hash password, nama tampilan, gender, usia, metrik fisik, dan target BMR/TDEE.
+1. **Autentikasi & database persisten:**
+   - Akun disimpan dalam tabel `users` dengan password hash. SQLite digunakan lokal; PostgreSQL diperlukan di Vercel melalui `DATABASE_URL`.
+   - Log harian, item belanja, bahan custom, dan bahan bawaan yang disembunyikan disimpan dengan relasi ke pengguna.
 2. **Kalkulator Takaran Masakan & Porsi Bahan:**
    - Menambahkan konversi takaran fleksibel: gram, kg, siung (5g), butir (50g), sendok makan (15g), sendok teh (5g), ikat sayur (150g), dan potong/buah (50g).
    - Menghitung nilai kalori dan protein per gram secara proporsional.
@@ -74,12 +75,12 @@ Berikut adalah standar pencatatan log yang aman (tidak membocorkan data sensitif
 
 ---
 
-## 4. Status Eksekusi Unit Test Suite
+## 4. Status Eksekusi Test Suite
 
 ```text
-Ran 48 tests in 5.757s
+Ran 222 tests
 
-OK (48/48 tests passed, 0 failures, 0 errors)
+OK (222/222 tests passed, 0 failures, 0 errors)
 ```
-Semua modul (`auth_service`, `recipe_service`, `calorie_service`, `tracker_service`, `shopping_service`, dan `api_endpoints`) telah teruji dan siap untuk deployment.
+Rinciannya 192 tes service/unit dan 30 tes API. Jumlah tes service/unit belum mencapai target P11 sebanyak 200. Tes lokal memverifikasi persistensi lintas instance service dan isolasi data pengguna dengan SQLite sementara; hasil tersebut belum membuktikan koneksi Neon atau deployment live. Temuan P10 juga belum menjadi GitHub Issues dan belum dapat dinyatakan solved sebelum dibuat, dideploy, dan diuji di live.
 

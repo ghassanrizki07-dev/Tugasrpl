@@ -4,8 +4,31 @@
 
 - **Hasil keseluruhan:** PASSED
 - **Perintah:** `python -m unittest discover -s tests -v`
-- **Ringkasan:** 48 tes berhasil, 0 gagal, 0 error.
-- **Terakhir dijalankan:** 29 Oktober 2026
+- **Ringkasan terakhir:** 222 tes berhasil, 0 gagal, 0 error (192 tes service/unit dan 30 tes API).
+- **Target P11:** Belum terpenuhi: jumlah tes service/unit masih kurang 8 dari target 200.
+- **Terakhir dijalankan:** 26 November 2026
+- **Batasan deployment:** Pengujian lokal tidak membuktikan data persisten pada Vercel. Uji browser live menemukan API `/api/auth/me` dan `/api/daily-logs` merespons HTTP 401 setelah halaman dimuat ulang.
+- **CI/deploy otomatis:** Belum dibuktikan; repositori GitHub saat ini tidak memiliki workflow GitHub Actions.
+- **Efek test gagal:** Demonstrasi assertion gagal menghasilkan status `FAILED` dan exit code 1. Ini membuktikan runner memberi sinyal gagal, tetapi bukan bukti pipeline CI karena workflow belum tersedia.
+- **Validasi storage lokal:** Tes SQLite sementara mengonfirmasi data log tetap tersedia lintas instance service dan data log, belanja, serta bahan custom terisolasi per pengguna.
+
+## Temuan P10 dan Status Perbaikan
+
+Temuan 1–4 diamati langsung pada deployment; temuan 5–11 ditelusuri pada implementasi layanan. Perbaikan lokal sudah diterapkan untuk temuan di bawah, tetapi belum diuji pada deployment baru. Database Neon harus dibuat dan `DATABASE_URL` dipasang di Vercel terlebih dahulu. **Temuan ini belum dibuat sebagai GitHub Issues, sehingga P10 belum selesai dan tidak boleh dinyatakan seluruhnya solved.**
+
+| No. | Temuan | Perbaikan | Status |
+|---|---|---|---|
+| 1 | Akun hilang setelah reload/perpindahan instance Vercel | Menggunakan SQLAlchemy dan PostgreSQL persisten; deployment Vercel menolak startup tanpa `DATABASE_URL`. | MENUNGGU KONFIGURASI NEON DAN UJI LIVE |
+| 2 | UI tetap menampilkan halaman utama setelah API autentikasi gagal | HTTP 401/404 mengarahkan pengguna ke login; aksi logout gagal menampilkan error, bukan berpura-pura berhasil. | MENUNGGU UJI LIVE |
+| 3 | Pantry memakai data fallback saat API gagal | Data Pantry hanya dirender setelah API berhasil; kegagalan menampilkan pesan error. | MENUNGGU UJI LIVE |
+| 4 | Rekomendasi memakai data fallback saat API gagal | Rekomendasi dihapus dari tampilan saat request gagal dan pesan error ditampilkan. | MENUNGGU UJI LIVE |
+| 5 | Catatan tracker hilang saat proses server berganti | Log disimpan di database dengan tanggal harian zona Asia/Jakarta. | MENUNGGU UJI LIVE |
+| 6 | Catatan tracker tidak diisolasi antar akun | Query tambah, baca, dan hapus log dibatasi dengan `user_id`. | MENUNGGU UJI LIVE |
+| 7 | Jurnal “harian” tidak memiliki batas tanggal | Log menyimpan tanggal dan GET hanya membaca tanggal saat ini zona Asia/Jakarta. | MENUNGGU UJI LIVE |
+| 8 | Daftar belanja hilang saat proses server berganti | Operasi daftar belanja memakai tabel PostgreSQL persisten. | MENUNGGU UJI LIVE |
+| 9 | Daftar belanja tidak diisolasi antar akun | Operasi daftar belanja dibatasi dengan `user_id`. | MENUNGGU UJI LIVE |
+| 10 | Bahan custom Pantry hilang saat proses server berganti | Bahan custom disimpan di database persisten. | MENUNGGU UJI LIVE |
+| 11 | Bahan custom Pantry dibagikan antar akun | Bahan custom dan bahan bawaan yang disembunyikan disimpan per pengguna. | MENUNGGU UJI LIVE |
 
 ## Checklist Fitur
 
@@ -38,4 +61,5 @@
 
 - Unit test menguji service autentikasi, resep/pantry, kalkulasi nutrisi, tracker, dan daftar belanja.
 - API test menguji route Flask, autentikasi sesi, validasi request, serta siklus fitur utama.
+- Penghitungan setelah penambahan tes storage: 192 tes service/unit dan 30 tes API. Tes API tidak dihitung sebagai unit test untuk target minimal 200.
 - Status **PASSED** berarti rangkaian tes otomatis di atas lulus pada saat dijalankan. Interaksi visual browser, termasuk filter pencarian di antarmuka, belum memiliki tes browser otomatis khusus.

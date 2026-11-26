@@ -127,5 +127,134 @@ class TestShoppingServiceEngine(unittest.TestCase):
         self.assertEqual(len(self.shopping.get_items()), 0)
 
 
+def _make_empty_name_test(raw_name):
+    """Membangun test case parameterized untuk penolakan nama belanja kosong."""
+    def test_fn(self):
+        with self.assertRaises(ValueError):
+            self.shopping.add_item(raw_name)
+    return test_fn
+
+
+def _make_invalid_missing_list_test(raw_missing):
+    """Membangun test case parameterized untuk generate_from_missing dengan input tidak valid."""
+    def test_fn(self):
+        result = self.shopping.generate_from_missing(raw_missing, recipe_title="Resep Uji")
+        self.assertEqual(result, [])
+    return test_fn
+
+
+class TestShoppingServiceExtended(unittest.TestCase):
+    def setUp(self):
+        self.shopping = ShoppingService()
+
+    def test_whitespace_trimmed_deduplication(self):
+        """Nama dengan spasi dan huruf berbeda tetap teragregasi sebagai satu item."""
+        self.shopping.add_item(" Garam Dapur ", "Bumbu", "1 bungkus", "Resep 1")
+        updated = self.shopping.add_item("garam dapur", "Bumbu", "1 sdt", "Resep 2")
+        self.assertEqual(len(self.shopping.get_items()), 1)
+        self.assertEqual(updated["count"], 2)
+
+    def test_same_recipe_source_not_duplicated(self):
+        """Nama resep sumber yang sama tidak tercatat dua kali di item['recipes']."""
+        self.shopping.add_item("Gula", "Bumbu", "1 sdm", "Resep X")
+        updated = self.shopping.add_item("Gula", "Bumbu", "2 sdm", "Resep X")
+        self.assertEqual(updated["recipes"], ["Resep X"])
+        self.assertEqual(updated["count"], 2)
+
+    def test_default_category_and_amount_fallback(self):
+        """Kategori dan takaran kosong fallback ke default 'Lain-lain' dan 'secukupnya'."""
+        item = self.shopping.add_item("Tisu Dapur", category="", amount="")
+        self.assertEqual(item["category"], "Lain-lain")
+        self.assertEqual(item["amount"], "secukupnya")
+
+    def test_empty_summary_completion_zero(self):
+        """Summary daftar kosong mengembalikan 0% progres tanpa division by zero."""
+        summary = self.shopping.get_summary()
+        self.assertEqual(summary["total_items"], 0)
+        self.assertEqual(summary["completion_percentage"], 0.0)
+        self.assertEqual(summary["categories"], {})
+
+    def test_single_item_bought_100_percent(self):
+        """Satu item yang dibeli menghasilkan 100.0% progres penyelesaian."""
+        item = self.shopping.add_item("Minyak")
+        self.shopping.toggle_item(item["id"])
+        summary = self.shopping.get_summary()
+        self.assertEqual(summary["completion_percentage"], 100.0)
+        self.assertEqual(summary["pending_count"], 0)
+
+    def test_toggle_nonexistent_id_returns_none(self):
+        """Toggle pada ID item yang tidak ditemukan mengembalikan None."""
+        self.assertIsNone(self.shopping.toggle_item(9999))
+
+    def test_delete_nonexistent_id_returns_false(self):
+        """Delete pada ID item yang tidak ditemukan mengembalikan False."""
+        self.assertFalse(self.shopping.delete_item(9999))
+
+    def test_clear_completed_when_none_bought_returns_zero(self):
+        """clear_completed mengembalikan 0 jika belum ada item yang dicentang."""
+        self.shopping.add_item("Kecap")
+        self.assertEqual(self.shopping.clear_completed(), 0)
+        self.assertEqual(len(self.shopping.get_items()), 1)
+
+    def test_category_filter_case_insensitive_and_whitespace(self):
+        """Filter kategori daftar belanja bersifat case-insensitive."""
+        self.shopping.add_item("Tahu", category="Protein")
+        items = self.shopping.get_items("  protein  ")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["name"], "Tahu")
+
+    def test_generate_from_missing_filters_malformed_rows(self):
+        """Entri non-dict atau tanpa nama diabaikan tanpa error oleh generator."""
+        raw = [
+            "bukan dict",
+            None,
+            {"id": 1},
+            {"id": 2, "name": "Brokoli"},
+        ]
+        added = self.shopping.generate_from_missing(raw, recipe_title="Sup")
+        self.assertEqual(len(added), 1)
+        self.assertEqual(added[0]["name"], "Brokoli")
+        self.assertEqual(added[0]["category"], "Bahan Dapur")
+        self.assertEqual(added[0]["amount"], "1 porsi")
+
+    def test_toggle_returns_defensive_copy(self):
+        """Mutasi hasil toggle_item tidak memengaruhi data tersimpan."""
+        item = self.shopping.add_item("Jahe")
+        toggled = self.shopping.toggle_item(item["id"])
+        toggled["name"] = "Diubah"
+        self.assertEqual(self.shopping.get_items()[0]["name"], "Jahe")
+
+    def test_category_counts_after_deletion(self):
+        """Statistik kategori berkurang akurat setelah satu item dihapus."""
+        i1 = self.shopping.add_item("Ayam", category="Protein")
+        self.shopping.add_item("Ikan", category="Protein")
+        self.shopping.delete_item(i1["id"])
+        summary = self.shopping.get_summary()
+        self.assertEqual(summary["categories"]["Protein"], 1)
+
+    def test_clear_all_resets_id_counter(self):
+        """clear_all mengembalikan penomoran ID item berikutnya menjadi 1."""
+        self.shopping.add_item("Garam")
+        self.shopping.add_item("Gula")
+        self.shopping.clear_all()
+        fresh = self.shopping.add_item("Merica")
+        self.assertEqual(fresh["id"], 1)
+
+
+for _name, _raw in [
+    ("reject_empty_string_name", ""),
+    ("reject_whitespace_name", "   "),
+    ("reject_none_name", None),
+]:
+    setattr(TestShoppingServiceExtended, f"test_{_name}", _make_empty_name_test(_raw))
+
+for _name, _missing in [
+    ("generate_none_input", None),
+    ("generate_empty_list", []),
+    ("generate_non_list_string", "invalid"),
+]:
+    setattr(TestShoppingServiceExtended, f"test_{_name}", _make_invalid_missing_list_test(_missing))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,14 @@
 // CookFit Frontend Engine - Interactive Prototype
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 let selectedIngredients = new Set();
 let allIngredientsCategorized = {};
 let currentRecipes = [];
@@ -220,6 +229,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadCurrentUser() {
     try {
         const res = await fetch('/api/auth/me');
+        if (res.status === 401 || res.status === 404) {
+            window.location.replace('/login');
+            return;
+        }
+        if (!res.ok) throw new Error(`Gagal memuat akun (HTTP ${res.status}).`);
         const json = await res.json();
         if (json.status === 'success' && json.data) {
             const user = json.data;
@@ -280,7 +294,7 @@ async function loadCurrentUser() {
             updateTrackerUI();
         }
     } catch (err) {
-        console.warn('Gagal memuat data user:', err);
+        console.error('Gagal memuat data user:', err);
     }
 }
 
@@ -314,9 +328,15 @@ function initAccountMenu() {
 async function handleLogout() {
     if (!confirm('Yakin ingin keluar dari CookFit?')) return;
     try {
-        await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (err) {}
-    window.location.href = '/login';
+        const res = await fetch('/api/auth/logout', { method: 'POST' });
+        if (!res.ok) throw new Error(`Logout gagal (HTTP ${res.status}).`);
+        const json = await res.json();
+        if (json.status !== 'success') throw new Error(json.message || 'Logout gagal.');
+        window.location.replace('/login');
+    } catch (err) {
+        console.error('Gagal logout:', err);
+        alert('Gagal keluar dari akun. Silakan coba lagi.');
+    }
 }
 
 
@@ -362,14 +382,19 @@ function switchToTab(targetTab) {
 async function loadIngredients() {
     try {
         const res = await fetch('/api/ingredients');
-        const json = await res.json();
-        if (json.status === 'success') {
-            allIngredientsCategorized = json.data;
-        } else {
-            allIngredientsCategorized = FALLBACK_INGREDIENTS;
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
         }
+        if (!res.ok) throw new Error(`Gagal memuat Pantry (HTTP ${res.status}).`);
+        const json = await res.json();
+        if (json.status !== 'success') throw new Error(json.message || 'Gagal memuat Pantry.');
+        allIngredientsCategorized = json.data;
     } catch (err) {
-        allIngredientsCategorized = FALLBACK_INGREDIENTS;
+        console.error(err);
+        const container = document.getElementById('pantry-categories-container');
+        if (container) container.textContent = 'Gagal memuat bahan Pantry. Silakan coba lagi.';
+        return;
     }
     renderPantryGrid();
     renderIngredientsSummaryList();
@@ -393,7 +418,7 @@ function renderPantryGrid(filterText = '') {
         
         const catTitle = document.createElement('div');
         catTitle.className = 'category-title';
-        catTitle.innerHTML = `<span>${category}</span> <span>${filteredItems.length} bahan</span>`;
+        catTitle.innerHTML = `<span>${escapeHtml(category)}</span> <span>${filteredItems.length} bahan</span>`;
         catBox.appendChild(catTitle);
 
         const grid = document.createElement('div');
@@ -405,8 +430,8 @@ function renderPantryGrid(filterText = '') {
             itemEl.className = `pantry-item ${isSelected ? 'selected' : ''}`;
             itemEl.innerHTML = `
                 <div class="pantry-checkbox">${isSelected ? 'Ada' : ''}</div>
-                <div class="pantry-name">${item.name}</div>
-                <div class="pantry-cal">${item.calories_per_100g} kcal</div>
+                <div class="pantry-name">${escapeHtml(item.name)}</div>
+                <div class="pantry-cal">${Number(item.calories_per_100g) || 0} kcal</div>
             `;
 
             itemEl.addEventListener('click', () => {
@@ -462,18 +487,21 @@ async function triggerRecipeMatching() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        const json = await res.json();
-
-        if (json.status === 'success') {
-            currentRecipes = json.data;
-            renderRecipeList(json.data);
+        if (res.status === 401) {
+            window.location.replace('/login');
             return;
         }
-    } catch (err) {
-        // Fallback matching client side
-    }
+        if (!res.ok) throw new Error(`Gagal memuat rekomendasi (HTTP ${res.status}).`);
+        const json = await res.json();
 
-    calculateClientSideMatching();
+        if (json.status !== 'success') throw new Error(json.message || 'Gagal memuat rekomendasi.');
+        currentRecipes = json.data;
+        renderRecipeList(json.data);
+    } catch (err) {
+        console.error(err);
+        currentRecipes = [];
+        listContainer.textContent = 'Gagal memuat rekomendasi resep. Silakan coba lagi.';
+    }
 }
 
 function calculateClientSideMatching() {
@@ -533,29 +561,29 @@ function renderRecipeList(recipes) {
         card.className = 'recipe-card';
         card.innerHTML = `
             <div class="recipe-header">
-                <div class="recipe-icon">${r.image_icon}</div>
+                <div class="recipe-icon">${escapeHtml(r.image_icon)}</div>
                 <div class="recipe-info">
                     <div class="recipe-title-row">
-                        <div class="recipe-title">${r.title}</div>
-                        <div class="match-badge ${badgeClass}">${r.match_score}% Match</div>
+                        <div class="recipe-title">${escapeHtml(r.title)}</div>
+                        <div class="match-badge ${badgeClass}">${Number(r.match_score) || 0}% Match</div>
                     </div>
                     <div class="recipe-meta">
-                        <span>${r.prep_time} menit</span> • <span>${r.servings} porsi</span>
+                        <span>${Number(r.prep_time) || 0} menit</span> • <span>${Number(r.servings) || 1} porsi</span>
                     </div>
                 </div>
             </div>
 
             <div class="nutri-pills">
-                <div class="nutri-pill">Kalori: ${r.total_calories} <span>kcal</span></div>
-                <div class="nutri-pill">Protein: ${r.total_protein}g</div>
-                <div class="nutri-pill">Karbo: ${r.total_carbs}g</div>
-                <div class="nutri-pill">Lemak: ${r.total_fat}g</div>
+                <div class="nutri-pill">Kalori: ${Number(r.total_calories) || 0} <span>kcal</span></div>
+                <div class="nutri-pill">Protein: ${Number(r.total_protein) || 0}g</div>
+                <div class="nutri-pill">Karbo: ${Number(r.total_carbs) || 0}g</div>
+                <div class="nutri-pill">Lemak: ${Number(r.total_fat) || 0}g</div>
             </div>
 
             ${r.missing_ingredients && r.missing_ingredients.length > 0 ? `
                 <div class="missing-box">
                     <div class="missing-title">Bahan kurang (${r.missing_ingredients.length})</div>
-                    <div class="missing-list">${r.missing_ingredients.map(m => m.name).join(', ')}</div>
+                    <div class="missing-list">${r.missing_ingredients.map(m => escapeHtml(m.name)).join(', ')}</div>
                 </div>
             ` : `
                 <div class="missing-box" style="background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3);">
@@ -564,10 +592,10 @@ function renderRecipeList(recipes) {
             `}
 
             <div class="recipe-actions">
-                <button class="btn-secondary" onclick="viewRecipeDetail(${r.id})">Lihat resep</button>
+                <button class="btn-secondary" onclick="viewRecipeDetail(${Number(r.id)})">Lihat resep</button>
                 <button
                     class="btn-outline-primary"
-                    onclick="logRecipeToTracker(${r.id})"
+                    onclick="logRecipeToTracker(${Number(r.id)})"
                     ${r.missing_ingredients && r.missing_ingredients.length > 0
                         ? 'disabled title="Lengkapi semua bahan di Pantry sebelum mencatat resep ini." style="opacity:0.5; cursor:not-allowed;"'
                         : ''}
@@ -583,14 +611,17 @@ function renderRecipeList(recipes) {
 // RECIPE DETAIL MODAL
 // ==========================================
 function viewRecipeDetail(recipeId) {
-    const r = currentRecipes.find(item => item.id === recipeId) || FALLBACK_RECIPES.find(item => item.id === recipeId);
-    if (!r) return;
+    const r = currentRecipes.find(item => item.id === recipeId);
+    if (!r) {
+        alert('Detail resep tidak tersedia. Silakan muat ulang rekomendasi.');
+        return;
+    }
 
     document.getElementById('modal-recipe-title').textContent = r.title;
     
-    let ingHtml = r.ingredients.map(i => `<li><b>${i.name}</b> (${i.amount}) - ${i.calories} kcal</li>`).join('');
+    let ingHtml = r.ingredients.map(i => `<li><b>${escapeHtml(i.name)}</b> (${escapeHtml(i.amount)}) - ${Number(i.calories) || 0} kcal</li>`).join('');
     document.getElementById('modal-ingredients-list').innerHTML = ingHtml;
-    document.getElementById('modal-instructions').innerHTML = r.instructions.replace(/\n/g, '<br>');
+    document.getElementById('modal-instructions').innerHTML = escapeHtml(r.instructions).replace(/\n/g, '<br>');
     
     document.getElementById('recipe-modal').classList.add('active');
 }
@@ -606,19 +637,25 @@ function closeModal() {
 async function loadDailyLogs() {
     try {
         const res = await fetch('/api/daily-logs');
-        const json = await res.json();
-        if (json.status === 'success') {
-            dailyLogs = json.data;
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
         }
+        if (!res.ok) throw new Error(`Gagal memuat jurnal (HTTP ${res.status}).`);
+        const json = await res.json();
+        if (json.status !== 'success') throw new Error(json.message || 'Gagal memuat jurnal.');
+        dailyLogs = json.data;
     } catch (err) {
-        // Fallback local memory
+        console.error(err);
+        const container = document.getElementById('daily-logs-container');
+        if (container) container.textContent = 'Gagal memuat jurnal makan. Silakan coba lagi.';
+        return;
     }
     updateTrackerUI();
 }
 
 async function logRecipeToTracker(recipeId) {
-    const recipe = currentRecipes.find(item => item.id === recipeId)
-        || FALLBACK_RECIPES.find(item => item.id === recipeId);
+    const recipe = currentRecipes.find(item => item.id === recipeId);
     if (!recipe) {
         alert('Resep tidak ditemukan. Silakan muat ulang daftar resep.');
         return;
@@ -646,6 +683,10 @@ async function logRecipeToTracker(recipeId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
+        }
         const json = await res.json();
         if (json.status === 'success') {
             await loadDailyLogs();
@@ -655,32 +696,29 @@ async function logRecipeToTracker(recipeId) {
         alert('Gagal mencatat resep: ' + (json.message || 'Terjadi kesalahan.'));
         return;
     } catch (err) {
-        console.warn('Gagal menghubungi backend saat mencatat resep:', err);
+        console.error('Gagal menghubungi backend saat mencatat resep:', err);
+        alert('Gagal menghubungi server. Resep belum dicatat.');
+        return;
     }
-
-    const fallbackLog = {
-        id: Date.now(),
-        ...payload
-    };
-    dailyLogs.unshift(fallbackLog);
-    alert(`"${recipe.title}" berhasil ditambahkan ke catatan makan.`);
-    updateTrackerUI();
 }
 
 async function deleteLogEntry(id) {
     try {
         const res = await fetch(`/api/daily-logs/${id}`, { method: 'DELETE' });
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
+        }
         const json = await res.json();
         if (json.status === 'success') {
             await loadDailyLogs();
             return;
         }
+        alert('Gagal menghapus catatan: ' + (json.message || 'Terjadi kesalahan.'));
     } catch (err) {
-        // Fallback local filter
+        console.error('Gagal menghubungi backend saat menghapus catatan:', err);
+        alert('Gagal menghubungi server. Catatan belum dihapus.');
     }
-
-    dailyLogs = dailyLogs.filter(l => l.id !== id);
-    updateTrackerUI();
 }
 
 function updateTrackerUI() {
@@ -729,12 +767,12 @@ function renderLogList() {
         item.className = 'log-item';
         item.innerHTML = `
             <div>
-                <div class="log-title">${log.recipe_title}</div>
-                <div class="log-meta">${log.meal_type} • Protein ${log.protein}g · Karbo ${log.carbs}g · Lemak ${log.fat}g</div>
+                <div class="log-title">${escapeHtml(log.recipe_title)}</div>
+                <div class="log-meta">${escapeHtml(log.meal_type)} • Protein ${Number(log.protein) || 0}g · Karbo ${Number(log.carbs) || 0}g · Lemak ${Number(log.fat) || 0}g</div>
             </div>
             <div style="display:flex; align-items:center;">
-                <div class="log-cal">+${log.calories} kcal</div>
-                <button class="btn-del" onclick="deleteLogEntry(${log.id})">Hapus</button>
+                <div class="log-cal">+${Number(log.calories) || 0} kcal</div>
+                <button class="btn-del" onclick="deleteLogEntry(${Number(log.id)})">Hapus</button>
             </div>
         `;
         container.appendChild(item);
@@ -789,6 +827,11 @@ async function saveProfile(e) {
                 goal
             })
         });
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
+        }
+        if (!res.ok) throw new Error(`Gagal menyimpan profil (HTTP ${res.status}).`);
         const json = await res.json();
         if (json.status === 'success') {
             userProfile = {
@@ -820,28 +863,10 @@ async function saveProfile(e) {
             return;
         }
     } catch (err) {
-        console.warn('Gagal menghubungi backend:', err);
+        console.error('Gagal menghubungi backend:', err);
+        alert('Gagal menyimpan profil ke server. Periksa koneksi lalu coba lagi.');
+        return;
     }
-
-    let bmr = 0;
-    if (gender === 'male') {
-        bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
-    } else {
-        bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161;
-    }
-
-    const tdee = Math.round(bmr * activity);
-    bmr = Math.round(bmr);
-
-    const dailyCalorieTarget = calculateDailyCalorieTarget(tdee, bmr, goal);
-    userProfile = {
-        name, gender, weight, height, age, activity_level: activity,
-        bmr, tdee, goal, daily_calorie_target: dailyCalorieTarget
-    };
-
-    updateProfileUI();
-    updateTrackerUI();
-    alert('Profil dan target kalori harian berhasil diperbarui.');
 }
 
 // ==========================================
@@ -861,7 +886,7 @@ const INGREDIENT_NUTRITION_PRESETS = {
     "bawang merah & putih": { cal: 40.0, protein: 1.5, carbs: 9.0, fat: 0.1, unit: "siung", defaultAmount: 3 },
     "bawang merah": { cal: 40.0, protein: 1.4, carbs: 9.0, fat: 0.1, unit: "siung", defaultAmount: 3 },
     "bawang putih": { cal: 149.0, protein: 6.4, carbs: 33.0, fat: 0.5, unit: "siung", defaultAmount: 2 },
-    "cabai red": { cal: 40.0, protein: 1.9, carbs: 8.8, fat: 0.4, unit: "buah", defaultAmount: 5 },
+    "cabai merah": { cal: 40.0, protein: 1.9, carbs: 8.8, fat: 0.4, unit: "buah", defaultAmount: 5 },
     "cabai": { cal: 40.0, protein: 1.9, carbs: 8.8, fat: 0.4, unit: "buah", defaultAmount: 5 },
     "wortel": { cal: 41.0, protein: 0.9, carbs: 9.6, fat: 0.2, unit: "gram", defaultAmount: 100 },
     "tomat": { cal: 18.0, protein: 0.9, carbs: 3.9, fat: 0.2, unit: "buah", defaultAmount: 1 },
@@ -941,7 +966,7 @@ function populateCookingIngredientSelect() {
     // Tambah optgroup untuk preset umum
     const groupCommon = document.createElement('optgroup');
     groupCommon.label = '🍳 Bahan Masakan Umum:';
-    const commonNames = ["Dada Ayam", "Daging Sapi", "Telur Ayam", "Tahu Putih", "Tempe", "Kangkung", "Bawang Merah & Putih", "Cabai Red", "Wortel", "Kecap Manis", "Minyak"];
+    const commonNames = ["Dada Ayam", "Daging Sapi", "Telur Ayam", "Tahu Putih", "Tempe", "Kangkung", "Bawang Merah & Putih", "Cabai Merah", "Wortel", "Kecap Manis", "Minyak"];
     commonNames.forEach(name => {
         if (!pantryItems.some(p => p.name.toLowerCase() === name.toLowerCase())) {
             const opt = document.createElement('option');
@@ -1048,8 +1073,8 @@ function updateLivePortionPreview() {
     const totalCal = Math.round(factor * cal100 * 10) / 10;
     const totalP = Math.round(factor * p100 * 10) / 10;
 
-    const unitLabel = unit === 'gram' ? `${totalGrams}g` : `${amount} ${unit} (${totalGrams}g)`;
-    previewEl.innerHTML = `👉 <strong>${unitLabel} ${rawName}</strong> = <span style="color:#34d399;">${totalCal} kcal</span> • <span style="color:#60a5fa;">${totalP}g Protein</span>`;
+    const unitLabel = unit === 'gram' ? `${totalGrams}g` : `${amount} ${escapeHtml(unit)} (${totalGrams}g)`;
+    previewEl.innerHTML = `👉 <strong>${unitLabel} ${escapeHtml(rawName)}</strong> = <span style="color:#34d399;">${totalCal} kcal</span> • <span style="color:#60a5fa;">${totalP}g Protein</span>`;
 }
 
 function handleAddCookingIngredient(e) {
@@ -1150,14 +1175,14 @@ function renderCookingIngredientsList() {
     cookingRecipeItems.forEach((item, idx) => {
         const card = document.createElement('div');
         card.className = 'portion-item-card';
-        const unitDesc = item.unit === 'gram' ? `${item.totalGrams}g` : `${item.amount} ${item.unit} (${item.totalGrams}g)`;
+        const unitDesc = item.unit === 'gram' ? `${item.totalGrams}g` : `${item.amount} ${escapeHtml(item.unit)} (${item.totalGrams}g)`;
         card.innerHTML = `
             <div>
-                <div style="font-size: 14px; font-weight: 700; color: var(--text-main);">${item.name}</div>
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-main);">${escapeHtml(item.name)}</div>
                 <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">
                     <span>Takaran: <strong style="color:var(--text-main);">${unitDesc}</strong></span> • 
-                    <span style="color: #34d399; font-weight: 600;">🔥 ${item.calories} kcal</span> • 
-                    <span style="color: #60a5fa; font-weight: 600;">🥩 ${item.protein}g Protein</span>
+                    <span style="color: #34d399; font-weight: 600;">🔥 ${Number(item.calories) || 0} kcal</span> •
+                    <span style="color: #60a5fa; font-weight: 600;">🥩 ${Number(item.protein) || 0}g Protein</span>
                 </div>
             </div>
             <button onclick="removeCookingIngredient(${idx})" style="background: none; border: none; color: #ef4444; font-size: 16px; cursor: pointer; padding: 4px 8px;" title="Hapus">✕</button>
@@ -1194,7 +1219,38 @@ async function logCookingDishToTracker() {
     const customTitle = dishNameInput ? dishNameInput.value.trim() : '';
     const title = customTitle || `Masakan Buatan (${cookingRecipeItems.map(i => i.name).slice(0, 2).join(' & ')})`;
 
-    await logRecipeToTracker(title, Math.round(totCal), Math.round(totP), Math.round(totC), Math.round(totF));
+    const payload = {
+        recipe_title: title,
+        meal_type: 'Makan Siang',
+        calories: Math.round(totCal),
+        protein: Math.round(totP),
+        carbs: Math.round(totC),
+        fat: Math.round(totF)
+    };
+    try {
+        const res = await fetch('/api/daily-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
+        }
+        if (!res.ok) throw new Error(`Gagal mencatat masakan (HTTP ${res.status}).`);
+        const json = await res.json();
+        if (json.status === 'success') {
+            await loadDailyLogs();
+            alert(`"${title}" berhasil ditambahkan ke catatan makan.`);
+        } else {
+            alert('Gagal mencatat masakan: ' + (json.message || 'Terjadi kesalahan.'));
+            return;
+        }
+    } catch (err) {
+        console.error('Gagal menghubungi backend saat mencatat masakan:', err);
+        alert('Gagal menghubungi server. Masakan belum dicatat.');
+        return;
+    }
     switchToTab('tracker-tab');
 }
 
@@ -1227,6 +1283,11 @@ async function handleAddNewIngredient(e) {
                 calories_per_100g: calories
             })
         });
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
+        }
+        if (!res.ok) throw new Error(`Gagal menambahkan bahan (HTTP ${res.status}).`);
         const json = await res.json();
         if (json.status === 'success') {
             const newItem = json.data;
@@ -1259,39 +1320,10 @@ async function handleAddNewIngredient(e) {
             return;
         }
     } catch (err) {
-        console.warn('Backend request failed, fallback lokal:', err);
+        console.error('Gagal menghubungi backend saat menambahkan bahan:', err);
+        alert('Gagal menyimpan bahan ke server. Bahan belum ditambahkan.');
+        return;
     }
-
-    // Fallback lokal jika backend tidak terhubung
-    const optionalIngredient = OPTIONAL_RECIPE_INGREDIENTS[name.toLowerCase()];
-    const itemCategory = optionalIngredient ? optionalIngredient.category : category;
-    const fallbackItem = optionalIngredient
-        ? { ...optionalIngredient }
-        : {
-            id: Math.max(
-                10,
-                ...Object.values(allIngredientsCategorized)
-                    .flat()
-                    .map(ingredient => ingredient.id)
-            ) + 1,
-            name,
-            calories_per_100g: calories
-        };
-
-    if (!allIngredientsCategorized[itemCategory]) {
-        allIngredientsCategorized[itemCategory] = [];
-    }
-    if (!allIngredientsCategorized[itemCategory].some(item => item.id === fallbackItem.id)) {
-        allIngredientsCategorized[itemCategory].push(fallbackItem);
-    }
-    selectedIngredients.add(fallbackItem.id);
-
-    renderPantryGrid();
-    updateSelectedCountBadge();
-    renderIngredientsSummaryList();
-
-    if (nameInput) nameInput.value = '';
-    alert(`Bahan "${name}" berhasil ditambahkan ke kategori "${itemCategory}" di Pantry Anda.`);
 }
 
 function renderIngredientsSummaryList() {
@@ -1319,17 +1351,17 @@ function renderIngredientsSummaryList() {
         const itemsHtml = items.map(item => `
             <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(15,23,42,0.5); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 6px;">
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:14px; color: var(--text-main); font-weight:600;">${item.name}</span>
-                    <span style="font-size:11px; color:#94a3b8;">(${item.calories_per_100g} kcal/100g)</span>
+                    <span style="font-size:14px; color: var(--text-main); font-weight:600;">${escapeHtml(item.name)}</span>
+                    <span style="font-size:11px; color:#94a3b8;">(${Number(item.calories_per_100g) || 0} kcal/100g)</span>
                 </div>
-                <button onclick="handleDeleteIngredient(${item.id}, '${item.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:12px; padding:4px 8px;" title="Hapus bahan">Hapus</button>
+                <button type="button" class="btn-delete-ingredient" data-id="${Number(item.id)}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:12px; padding:4px 8px;" title="Hapus bahan">Hapus</button>
             </div>
         `).join('');
 
         catBlock.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
                 <span style="font-weight:700; font-size:13px; color: ${badgeColor}; display:flex; align-items:center; gap:6px;">
-                    <span>${categoryLabel}</span> ${category}
+                    <span>${categoryLabel}</span> ${escapeHtml(category)}
                 </span>
                 <span style="font-size:11px; background:${badgeBg}; color:${badgeColor}; padding:2px 8px; border-radius:20px; font-weight:600;">
                     ${items.length} bahan
@@ -1339,6 +1371,13 @@ function renderIngredientsSummaryList() {
                 ${itemsHtml}
             </div>
         `;
+        catBlock.querySelectorAll('.btn-delete-ingredient').forEach(btn => {
+            const ingId = Number(btn.dataset.id);
+            const matched = items.find(i => i.id === ingId);
+            if (matched) {
+                btn.addEventListener('click', () => handleDeleteIngredient(matched.id, matched.name));
+            }
+        });
         container.appendChild(catBlock);
     }
 }
@@ -1348,6 +1387,10 @@ async function handleDeleteIngredient(id, name) {
 
     try {
         const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE' });
+        if (res.status === 401) {
+            window.location.replace('/login');
+            return;
+        }
         const json = await res.json();
         if (json.status === 'success') {
             for (const cat in allIngredientsCategorized) {
@@ -1359,13 +1402,9 @@ async function handleDeleteIngredient(id, name) {
             renderIngredientsSummaryList();
             return;
         }
-    } catch (err) {}
-
-    for (const cat in allIngredientsCategorized) {
-        allIngredientsCategorized[cat] = allIngredientsCategorized[cat].filter(i => i.id !== id);
+        alert('Gagal menghapus bahan: ' + (json.message || 'Terjadi kesalahan.'));
+    } catch (err) {
+        console.error('Gagal menghubungi backend saat menghapus bahan:', err);
+        alert('Gagal menghubungi server. Bahan belum dihapus.');
     }
-    selectedIngredients.delete(id);
-    renderPantryGrid();
-    updateSelectedCountBadge();
-    renderIngredientsSummaryList();
 }

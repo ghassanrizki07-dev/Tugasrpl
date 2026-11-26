@@ -20,6 +20,7 @@ class TestAuthService(unittest.TestCase):
 
     def tearDown(self):
         """Hapus database SQLite temporary setelah test selesai."""
+        self.auth_service.database.engine.dispose()
         if os.path.exists(self.temp_db_path):
             try:
                 os.remove(self.temp_db_path)
@@ -197,6 +198,128 @@ class TestAuthService(unittest.TestCase):
         # Verifikasi kembali keduanya memiliki nilai masing-masing
         self.assertEqual(self.auth_service.get_user_by_id(user_a["id"])["bmr"], 1690)
         self.assertEqual(self.auth_service.get_user_by_id(user_b["id"])["bmr"], 1285)
+
+
+def _make_username_rule_test(username, should_pass, expected_clean=None):
+    """Membangun test case parameterized untuk aturan validasi username."""
+    def test_fn(self):
+        if should_pass:
+            user = self.auth_service.register(username, "validpass123")
+            self.assertEqual(user["username"], expected_clean)
+        else:
+            with self.assertRaises(ValueError):
+                self.auth_service.register(username, "validpass123")
+    return test_fn
+
+
+def _make_password_rule_test(username, password, should_pass):
+    """Membangun test case parameterized untuk aturan panjang password."""
+    def test_fn(self):
+        if should_pass:
+            user = self.auth_service.register(username, password)
+            self.assertIsNotNone(user["id"])
+        else:
+            with self.assertRaises(ValueError):
+                self.auth_service.register(username, password)
+    return test_fn
+
+
+class TestAuthServiceExtended(unittest.TestCase):
+    def setUp(self):
+        self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        self.temp_db_path = self.temp_db.name
+        self.temp_db.close()
+        self.auth_service = AuthService(db_path=self.temp_db_path)
+
+    def tearDown(self):
+        self.auth_service.database.engine.dispose()
+        if os.path.exists(self.temp_db_path):
+            try:
+                os.remove(self.temp_db_path)
+            except OSError:
+                pass
+
+    def test_login_case_insensitive_and_trimmed_username(self):
+        """Login menerima username dengan huruf besar dan spasi depan/belakang."""
+        self.auth_service.register("FitChef.01", "pass1234", "Fit Chef")
+        prof = self.auth_service.login("  FITCHEF.01  ", "pass1234")
+        self.assertEqual(prof["username"], "fitchef.01")
+
+    def test_login_empty_username_or_password_rejected(self):
+        """Login menolak username kosong atau password kosong."""
+        self.auth_service.register("chef01", "pass1234")
+        with self.assertRaises(ValueError):
+            self.auth_service.login("   ", "pass1234")
+        with self.assertRaises(ValueError):
+            self.auth_service.login("chef01", "")
+
+    def test_register_defaults_display_name_to_username(self):
+        """Display name kosong otomatis menggunakan username."""
+        user = self.auth_service.register("auto_name", "pass1234")
+        self.assertEqual(user["display_name"], "auto_name")
+
+    def test_update_profile_partial_preserves_other_fields(self):
+        """Update sebagian field profil tidak menimpa field lainnya."""
+        user = self.auth_service.register("partial_user", "pass1234", "Initial Name")
+        self.auth_service.update_profile(user["id"], weight=70.0, bmr=1650, tdee=2200)
+        updated = self.auth_service.update_profile(user["id"], goal="bulking")
+        self.assertEqual(updated["weight"], 70.0)
+        self.assertEqual(updated["bmr"], 1650)
+        self.assertEqual(updated["goal"], "bulking")
+        self.assertEqual(updated["display_name"], "Initial Name")
+
+    def test_update_profile_nonexistent_user_raises(self):
+        """Update profil untuk user_id yang tidak ada memicu ValueError."""
+        with self.assertRaises(ValueError):
+            self.auth_service.update_profile(999999, weight=65.0)
+
+    def test_get_user_by_id_nonexistent_returns_none(self):
+        """Mengambil user dengan ID yang tidak ada mengembalikan None."""
+        self.assertIsNone(self.auth_service.get_user_by_id(999999))
+
+    def test_record_activity_day_isolated_between_users(self):
+        """Jumlah hari aktif tidak tercampur antar akun yang berbeda."""
+        u1 = self.auth_service.register("day_u1", "pass1234")
+        u2 = self.auth_service.register("day_u2", "pass1234")
+        today = date.today()
+        self.auth_service.record_activity_day(u1["id"], today)
+        self.auth_service.record_activity_day(u1["id"], today - timedelta(days=1))
+        self.assertEqual(self.auth_service.get_user_by_id(u1["id"])["active_days"], 2)
+        self.assertEqual(self.auth_service.get_user_by_id(u2["id"])["active_days"], 0)
+
+    def test_register_duplicate_with_whitespace_rejected(self):
+        """Registrasi username sama dengan spasi ekstra tetap ditolak."""
+        self.auth_service.register("trimuser", "pass1234")
+        with self.assertRaises(ValueError):
+            self.auth_service.register("  TRIMUSER ", "pass1234")
+
+    def test_get_all_users_empty_returns_empty_list(self):
+        """Database kosong mengembalikan daftar pengguna kosong."""
+        self.assertEqual(self.auth_service.get_all_users(), [])
+
+
+for _name, _uname, _ok, _clean in [
+    ("username_two_chars_rejected", "ab", False, None),
+    ("username_three_chars_accepted", "abc", True, "abc"),
+    ("username_thirty_chars_accepted", "a" * 30, True, "a" * 30),
+    ("username_thirty_one_chars_rejected", "a" * 31, False, None),
+    ("username_with_dot_accepted", "john.doe", True, "john.doe"),
+    ("username_with_underscore_accepted", "john_doe_9", True, "john_doe_9"),
+    ("username_trimmed_lowercase", "  Chef_Budi  ", True, "chef_budi"),
+    ("username_with_space_rejected", "john doe", False, None),
+    ("username_with_hyphen_rejected", "john-doe", False, None),
+    ("username_with_script_rejected", "<script>", False, None),
+    ("username_whitespace_only_rejected", "    ", False, None),
+]:
+    setattr(TestAuthServiceExtended, f"test_{_name}", _make_username_rule_test(_uname, _ok, _clean))
+
+for _name, _uname, _pw, _ok in [
+    ("password_three_chars_rejected", "pw_u1", "123", False),
+    ("password_four_chars_accepted", "pw_u2", "1234", True),
+    ("password_empty_rejected", "pw_u3", "", False),
+    ("password_long_accepted", "pw_u4", "P@ssw0rd!VeryLong2026", True),
+]:
+    setattr(TestAuthServiceExtended, f"test_{_name}", _make_password_rule_test(_uname, _pw, _ok))
 
 
 if __name__ == '__main__':

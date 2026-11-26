@@ -47,7 +47,7 @@ Masalah sehari-hari di rumah atau tempat kos sering kali berkisar pada dua hal: 
 
 1. **Sangat Ringkas Namun Fungsional:** Menggabungkan masalah praktis dapur (*pantry matching*) dengan pencatatan kesehatan (*calorie tracking*) dalam satu aplikasi terpadu.
 2. **Implementasi Algoritma Dasar yang Menarik:** Menggunakan logika pencocokan himpunan (*set intersection*) untuk resep dan perhitungan aritmatika dasar untuk gizi, sangat pas untuk portofolio RPL.
-3. **Tidak Membutuhkan API Mahal / AI Rumit:** Semua data resep dan data kalori bahan baku dapat disimpan dalam basis data lokal (MySQL) sehingga dapat berjalan cepat dan hemat biaya hosting.
+3. **Tidak Membutuhkan API Mahal / AI Rumit:** Katalog resep disediakan aplikasi, sedangkan akun dan data pengguna disimpan di database relasional.
 
 ---
 
@@ -96,8 +96,8 @@ Masalah sehari-hari di rumah atau tempat kos sering kali berkisar pada dua hal: 
      │                                         │
      └────────────────────┬────────────────────┘
                           ▼
-                   [ Database MySQL ]
-        (Tabel: ingredients, recipes, daily_logs)
+        [ SQLite lokal ]          [ PostgreSQL di Neon ]
+         (pengembangan)                (Vercel)
 ```
 
 ### Logika Engine & Rumus Perhitungan
@@ -142,7 +142,7 @@ Pilihan tujuan disimpan di profil akun dan dipakai sebagai batas target pada Nut
 
 * **Frontend:** HTML5, CSS3, & JavaScript (Vanilla JS) — Dibuat responsif agar nyaman dibuka di layar HP tanpa perlu *framework* JavaScript yang rumit.
 * **Backend:** Python dengan Flask untuk halaman web dan REST API.
-* **Database:** SQLite untuk data akun, dengan katalog resep dan bahan awal yang disediakan aplikasi.
+* **Database:** SQLite untuk pengembangan lokal; PostgreSQL (misalnya Neon) untuk deployment Vercel. Akun, jurnal, daftar belanja, dan bahan custom disimpan per pengguna.
 * **Pengujian:** `unittest` bawaan Python untuk unit dan API tests.
 
 ---
@@ -190,6 +190,12 @@ python app.py
 Buka `http://127.0.0.1:5000` di browser. Database SQLite lokal dibuat otomatis saat aplikasi berjalan dan tidak perlu di-commit.
 
 Untuk lingkungan yang membutuhkan sesi login tetap valid setelah server dimulai ulang, atur variabel lingkungan `SECRET_KEY` dengan nilai acak yang dirahasiakan sebelum menjalankan aplikasi.
+
+### Database persisten untuk Vercel
+
+Filesystem fungsi Vercel tidak cocok untuk menyimpan file SQLite persisten. Buat database PostgreSQL (contohnya proyek Neon), salin connection string dari penyedia database, lalu tambahkan di **Vercel → Project Settings → Environment Variables** dengan nama `DATABASE_URL`. Aktifkan variabel untuk environment yang akan diuji, lalu redeploy aplikasi. Aplikasi sengaja gagal saat startup di Vercel jika `DATABASE_URL` belum diatur agar tidak diam-diam menyimpan data sementara.
+
+Nilai `DATABASE_URL` adalah rahasia: jangan commit ke repository atau kirim melalui chat. Integrasi Neon di Vercel opsional; yang wajib adalah database PostgreSQL yang dapat dijangkau aplikasi dan environment variable tersebut.
 
 ### Menjalankan tes
 ```bash

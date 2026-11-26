@@ -66,6 +66,10 @@ Biarkan jendela PowerShell tetap terbuka selama aplikasi digunakan. Untuk menghe
 
 Database SQLite akan dibuat atau disiapkan otomatis saat aplikasi dijalankan. File database lokal tidak perlu diunggah ke GitHub.
 
+### Menyiapkan database deployment Vercel
+
+Vercel memerlukan PostgreSQL persisten karena file lokal tidak bertahan antar-instance. Buat database PostgreSQL (misalnya Neon), lalu tambahkan connection string sebagai environment variable `DATABASE_URL` pada pengaturan proyek Vercel dan redeploy. Jangan simpan connection string di repository atau kirim melalui chat. Rincian ada di bagian **Database persisten untuk Vercel** pada [README.md](./README.md).
+
 ## Cara Menggunakan Aplikasi
 
 ### 1. Daftar atau masuk

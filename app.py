@@ -16,23 +16,53 @@ from services.calorie_service import CalorieService
 from services.tracker_service import TrackerService
 from services.shopping_service import ShoppingService
 from services.auth_service import AuthService
+from services.database import create_database_for_app
+from services.persistent_store import PersistentStore
 import os
+import hashlib
 import secrets
 from whitenoise import WhiteNoise
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
-app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+
+
+def _resolve_secret_key() -> str:
+    """Menentukan secret key stabil di serverless Vercel maupun lokal."""
+    configured = os.environ.get('SECRET_KEY')
+    if configured:
+        return configured
+    if os.environ.get('VERCEL'):
+        seed = "|".join(
+            os.environ.get(var, '')
+            for var in ('VERCEL_PROJECT_ID', 'VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_URL', 'VERCEL_GIT_REPO_ID')
+        ) or 'cookfit-vercel-fallback'
+        return hashlib.sha256(seed.encode('utf-8')).hexdigest()
+    return secrets.token_hex(32)
+
+
+app.secret_key = _resolve_secret_key()
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = bool(os.environ.get('VERCEL'))
+
+
+def _get_json_dict() -> dict:
+    """Memastikan body JSON selalu berupa dict agar payload list/primitif tidak memicu AttributeError."""
+    payload = request.get_json(silent=True)
+    return payload if isinstance(payload, dict) else {}
 
 # Gunakan WhiteNoise agar file statis (CSS/JS) di-serve langsung di level WSGI secara andal (100% kompatibel Vercel)
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 app.wsgi_app = WhiteNoise(app.wsgi_app, root=static_dir, prefix='static/')
 
 # Inisialisasi Service untuk seluruh fitur MVP
-recipe_service = RecipeService()
+database = create_database_for_app()
+persistent_store = PersistentStore(database) if database else None
+recipe_service = RecipeService(persistent_store=persistent_store)
 calorie_service = CalorieService()
-tracker_service = TrackerService()
-shopping_service = ShoppingService()
-auth_service = AuthService()
+shopping_service = ShoppingService(persistent_store=persistent_store)
+tracker_service = TrackerService(persistent_store=persistent_store)
+auth_service = AuthService(database=database)
 
 
 # ==========================================
@@ -66,7 +96,7 @@ def login_page():
 @app.route('/api/auth/register', methods=['POST'])
 def register_endpoint():
     """Mendaftarkan akun pengguna baru."""
-    data = request.get_json(silent=True) or {}
+    data = _get_json_dict()
     username = data.get('username', '')
     password = data.get('password', '')
     display_name = data.get('display_name', '')
@@ -85,7 +115,7 @@ def register_endpoint():
 @app.route('/api/auth/login', methods=['POST'])
 def login_endpoint():
     """Memverifikasi kredensial login."""
-    data = request.get_json(silent=True) or {}
+    data = _get_json_dict()
     username = data.get('username', '')
     password = data.get('password', '')
 
@@ -139,7 +169,7 @@ def index():
 @login_required
 def get_ingredients():
     """Mengambil katalog bahan dapur yang dikelompokkan per kategori."""
-    ingredients = recipe_service.get_all_ingredients()
+    ingredients = recipe_service.get_all_ingredients(session['user_id'])
     return jsonify({'status': 'success', 'data': ingredients})
 
 
@@ -147,8 +177,9 @@ def get_ingredients():
 @login_required
 def add_ingredient():
     """Menambahkan bahan makanan baru ke kategori tertentu di pantry."""
-    data = request.get_json(silent=True) or {}
-    name = data.get('name', '').strip()
+    data = _get_json_dict()
+    raw_name = data.get('name', '')
+    name = raw_name.strip() if isinstance(raw_name, str) else ''
     category = data.get('category', 'Sayuran & Bumbu')
     calories = data.get('calories_per_100g', 50)
 
@@ -156,12 +187,21 @@ def add_ingredient():
         return jsonify({'status': 'error', 'message': 'Nama bahan makanan tidak boleh kosong.'}), 400
 
     try:
-        new_item = recipe_service.add_ingredient(name, category, calories)
-        actual_category = next(
-            ingredient_category
-            for ingredient_category, items in recipe_service.get_all_ingredients().items()
-            if new_item in items
+        new_item = recipe_service.add_ingredient(
+            name, category, calories, user_id=session['user_id']
         )
+        actual_category = next(
+            (
+                ingredient_category
+                for ingredient_category, items in recipe_service.get_all_ingredients(
+                    session['user_id']
+                ).items()
+                if any(item['id'] == new_item['id'] for item in items)
+            ),
+            None,
+        )
+        if actual_category is None:
+            raise RuntimeError("Bahan berhasil disimpan tetapi tidak ditemukan di Pantry pengguna.")
         return jsonify({
             'status': 'success',
             'message': f'Bahan "{name}" berhasil ditambahkan ke kategori {actual_category}!',
@@ -176,7 +216,7 @@ def add_ingredient():
 @login_required
 def delete_ingredient(ingredient_id):
     """Menghapus bahan makanan dari katalog pantry."""
-    deleted = recipe_service.delete_ingredient(ingredient_id)
+    deleted = recipe_service.delete_ingredient(ingredient_id, user_id=session['user_id'])
     if deleted:
         return jsonify({'status': 'success', 'message': 'Bahan berhasil dihapus dari Pantry.'})
     return jsonify({'status': 'error', 'message': 'Bahan tidak ditemukan.'}), 404
@@ -197,7 +237,7 @@ def match_recipes():
     Menghitung persentase kecocokan resep berdasarkan
     daftar ID bahan makanan yang dipilih pengguna di kulkas.
     """
-    data = request.get_json(silent=True) or {}
+    data = _get_json_dict()
     selected_ids = data.get('ingredient_ids', [])
     results = recipe_service.match_recipes(selected_ids)
     return jsonify({'status': 'success', 'data': results})
@@ -213,7 +253,7 @@ def calculate_bmr_endpoint():
     Menghitung BMR, TDEE, dan target makronutrisi harian berdasarkan profil fisik.
     Payload: { gender, weight, height, age, activity_level, goal }
     """
-    data = request.get_json(silent=True) or {}
+    data = _get_json_dict()
     gender = data.get('gender', 'male')
     weight = data.get('weight')
     height = data.get('height')
@@ -264,7 +304,7 @@ def calculate_cooking_endpoint():
     Menghitung total kalori dan protein masakan berdasarkan takaran bahan (gram/siung/butir).
     Payload: { items: [ { name, amount, unit, cal_per_100g, protein_per_100g } ] }
     """
-    data = request.get_json(silent=True) or {}
+    data = _get_json_dict()
     items = data.get('items', [])
 
     try:
@@ -278,8 +318,9 @@ def calculate_cooking_endpoint():
 @login_required
 def calculate_portion_endpoint():
     """Menghitung kalori dan protein satu bahan masakan tertentu berdasarkan gram/unit."""
-    data = request.get_json(silent=True) or {}
-    name = data.get('name', '').strip()
+    data = _get_json_dict()
+    raw_name = data.get('name', '')
+    name = raw_name.strip() if isinstance(raw_name, str) else ''
     amount = data.get('amount', 0)
     unit = data.get('unit', 'gram')
     cal_100 = data.get('cal_per_100g')
@@ -312,7 +353,7 @@ def daily_logs_endpoint():
     POST: Mencatat konsumsi menu masakan ke log harian.
     """
     if request.method == 'POST':
-        data = request.get_json(silent=True) or {}
+        data = _get_json_dict()
         try:
             recipe_id = data.get('recipe_id')
             recipe_title = data.get('recipe_title')
@@ -356,7 +397,7 @@ def daily_logs_endpoint():
                 if missing_ids:
                     missing_names = [
                         ingredient["name"]
-                        for items in recipe_service.get_all_ingredients().values()
+                        for items in recipe_service.get_all_ingredients(session['user_id']).values()
                         for ingredient in items
                         if ingredient["id"] in missing_ids
                     ]
@@ -365,7 +406,7 @@ def daily_logs_endpoint():
                         for ingredient_id in missing_ids
                         if not any(
                             ingredient["id"] == ingredient_id
-                            for items in recipe_service.get_all_ingredients().values()
+                            for items in recipe_service.get_all_ingredients(session['user_id']).values()
                             for ingredient in items
                         )
                     )
@@ -381,16 +422,8 @@ def daily_logs_endpoint():
                 protein=data.get('protein', 0),
                 carbs=data.get('carbs', 0),
                 fat=data.get('fat', 0),
-                meal_type=data.get('meal_type', 'Makan Siang')
-            )
-            # Sync dengan calorie_service untuk backward compatibility
-            calorie_service.add_daily_log(
-                recipe_title=data.get('recipe_title'),
-                calories=data.get('calories', 0),
-                protein=data.get('protein', 0),
-                carbs=data.get('carbs', 0),
-                fat=data.get('fat', 0),
-                meal_type=data.get('meal_type', 'Makan Siang')
+                meal_type=data.get('meal_type', 'Makan Siang'),
+                user_id=session['user_id'],
             )
             return jsonify({'status': 'success', 'data': new_entry}), 201
         except (ValueError, TypeError) as err:
@@ -398,7 +431,7 @@ def daily_logs_endpoint():
 
     # GET request
     meal_filter = request.args.get('meal_type')
-    logs = tracker_service.get_logs(meal_type=meal_filter)
+    logs = tracker_service.get_logs(meal_type=meal_filter, user_id=session['user_id'])
     return jsonify({'status': 'success', 'data': logs})
 
 
@@ -406,8 +439,7 @@ def daily_logs_endpoint():
 @login_required
 def delete_daily_log_endpoint(log_id):
     """Menghapus catatan makan dari log harian berdasarkan ID."""
-    deleted = tracker_service.delete_log(log_id)
-    calorie_service.delete_daily_log(log_id)
+    deleted = tracker_service.delete_log(log_id, user_id=session['user_id'])
     if deleted:
         return jsonify({'status': 'success', 'message': f'Log #{log_id} berhasil dihapus.'})
     return jsonify({'status': 'error', 'message': 'Log tidak ditemukan.'}), 404
@@ -417,8 +449,16 @@ def delete_daily_log_endpoint(log_id):
 @login_required
 def daily_summary_endpoint():
     """Mengambil akumulasi total kalori & makronutrisi harian serta analisis budget."""
-    tdee = request.args.get('target_tdee', type=int)
-    summary = tracker_service.get_summary(target_tdee=tdee)
+    raw_tdee = request.args.get('target_tdee')
+    tdee = None
+    if raw_tdee is not None and raw_tdee != '':
+        try:
+            tdee = int(raw_tdee)
+        except (ValueError, TypeError):
+            return jsonify({'status': 'error', 'message': 'target_tdee harus berupa angka bulat.'}), 400
+        if tdee < 0:
+            return jsonify({'status': 'error', 'message': 'target_tdee tidak boleh bernilai negatif.'}), 400
+    summary = tracker_service.get_summary(target_tdee=tdee, user_id=session['user_id'])
     return jsonify({'status': 'success', 'data': summary})
 
 
@@ -430,8 +470,8 @@ def daily_summary_endpoint():
 def get_shopping_list_endpoint():
     """Mengambil seluruh daftar belanjaan dan ringkasan progres."""
     category = request.args.get('category')
-    items = shopping_service.get_items(category=category)
-    summary = shopping_service.get_summary()
+    items = shopping_service.get_items(category=category, user_id=session['user_id'])
+    summary = shopping_service.get_summary(user_id=session['user_id'])
     return jsonify({'status': 'success', 'data': {'items': items, 'summary': summary}})
 
 
@@ -442,14 +482,16 @@ def generate_shopping_list_endpoint():
     Menghasilkan item belanja otomatis dari missing ingredients resep.
     Payload: { missing_ingredients: [...], recipe_title: "..." }
     """
-    data = request.get_json(silent=True) or {}
+    data = _get_json_dict()
     missing = data.get('missing_ingredients', [])
     recipe_title = data.get('recipe_title')
     
     if not isinstance(missing, list):
         return jsonify({'status': 'error', 'message': 'missing_ingredients harus berupa array list.'}), 400
 
-    generated = shopping_service.generate_from_missing(missing, recipe_title=recipe_title)
+    generated = shopping_service.generate_from_missing(
+        missing, recipe_title=recipe_title, user_id=session['user_id']
+    )
     return jsonify({
         'status': 'success',
         'message': f'{len(generated)} bahan berhasil ditambahkan ke daftar belanja.',
@@ -461,13 +503,15 @@ def generate_shopping_list_endpoint():
 @login_required
 def add_custom_shopping_item():
     """Menambahkan bahan belanjaan kustom secara manual."""
-    data = request.get_json(silent=True) or {}
+    data = _get_json_dict()
     name = data.get('name')
     category = data.get('category', 'Lain-lain')
     amount = data.get('amount', 'secukupnya')
 
     try:
-        new_item = shopping_service.add_item(name=name, category=category, amount=amount)
+        new_item = shopping_service.add_item(
+            name=name, category=category, amount=amount, user_id=session['user_id']
+        )
         return jsonify({'status': 'success', 'data': new_item}), 201
     except ValueError as err:
         return jsonify({'status': 'error', 'message': str(err)}), 400
@@ -477,7 +521,7 @@ def add_custom_shopping_item():
 @login_required
 def toggle_shopping_item(item_id):
     """Mengubah status barang (sudah dibeli / belum)."""
-    updated = shopping_service.toggle_item(item_id)
+    updated = shopping_service.toggle_item(item_id, user_id=session['user_id'])
     if updated is not None:
         return jsonify({'status': 'success', 'data': updated})
     return jsonify({'status': 'error', 'message': 'Item belanja tidak ditemukan.'}), 404
@@ -487,7 +531,7 @@ def toggle_shopping_item(item_id):
 @login_required
 def delete_shopping_item(item_id):
     """Menghapus satu item belanjaan berdasarkan ID."""
-    deleted = shopping_service.delete_item(item_id)
+    deleted = shopping_service.delete_item(item_id, user_id=session['user_id'])
     if deleted:
         return jsonify({'status': 'success', 'message': f'Item #{item_id} berhasil dihapus.'})
     return jsonify({'status': 'error', 'message': 'Item belanja tidak ditemukan.'}), 404
@@ -499,10 +543,10 @@ def clear_shopping_list():
     """Mengosongkan daftar belanjaan (seluruhnya atau hanya item selesai dibeli)."""
     completed_only = request.args.get('completed_only', 'false').lower() == 'true'
     if completed_only:
-        removed_count = shopping_service.clear_completed()
+        removed_count = shopping_service.clear_completed(user_id=session['user_id'])
         return jsonify({'status': 'success', 'message': f'{removed_count} barang terbeli berhasil dibersihkan.'})
     
-    shopping_service.clear_all()
+    shopping_service.clear_all(user_id=session['user_id'])
     return jsonify({'status': 'success', 'message': 'Daftar belanja berhasil dikosongkan.'})
 
 

@@ -6,6 +6,7 @@ Modul logika bisnis untuk:
 3. Mengelola pencatatan jurnal makanan harian (NutriTracker) & akumulasi makronutrisi
 """
 
+import math
 from typing import Dict, Any, List, Optional
 import time
 
@@ -130,6 +131,20 @@ class CalorieService:
     # ==========================================
     # KALKULATOR TAKARAN BAHAN MASAKAN (PORTION CALCULATOR)
     # ==========================================
+    def _parse_optional_macro(self, value: Any, default_val: float, label: str) -> float:
+        """Memparsing nilai nutrisi opsional dengan validasi tipe numerik dan batas non-negatif."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return default_val
+        if isinstance(value, bool):
+            raise ValueError(f"{label} harus berupa angka numerik.")
+        try:
+            parsed = float(value)
+        except (ValueError, TypeError):
+            raise ValueError(f"{label} harus berupa angka numerik.")
+        if not math.isfinite(parsed) or parsed < 0:
+            raise ValueError(f"{label} tidak boleh bernilai negatif.")
+        return parsed
+
     def calculate_ingredient_portion(self, name: str, amount: float, unit: str = "gram",
                                      cal_per_100g: Optional[float] = None,
                                      protein_per_100g: Optional[float] = None,
@@ -205,10 +220,10 @@ class CalorieService:
         default_c = ref["carbs"] if ref else 5.0
         default_f = ref["fat"] if ref else 1.0
 
-        c_100 = float(cal_per_100g) if cal_per_100g is not None and cal_per_100g >= 0 else default_cal
-        p_100 = float(protein_per_100g) if protein_per_100g is not None and protein_per_100g >= 0 else default_p
-        carb_100 = float(carbs_per_100g) if carbs_per_100g is not None and carbs_per_100g >= 0 else default_c
-        fat_100 = float(fat_per_100g) if fat_per_100g is not None and fat_per_100g >= 0 else default_f
+        c_100 = self._parse_optional_macro(cal_per_100g, default_cal, "Kalori per 100g")
+        p_100 = self._parse_optional_macro(protein_per_100g, default_p, "Protein per 100g")
+        carb_100 = self._parse_optional_macro(carbs_per_100g, default_c, "Karbohidrat per 100g")
+        fat_100 = self._parse_optional_macro(fat_per_100g, default_f, "Lemak per 100g")
 
         factor = total_grams / 100.0
         calories = round(factor * c_100, 1)
@@ -233,7 +248,7 @@ class CalorieService:
         """
         Menghitung total kalori, protein, karbohidrat, dan lemak dari seluruh bahan masakan.
         """
-        if not items or not isinstance(items, list):
+        if items is None or items == []:
             return {
                 "total_calories": 0.0,
                 "total_protein": 0.0,
@@ -242,6 +257,8 @@ class CalorieService:
                 "total_grams": 0.0,
                 "items": []
             }
+        if not isinstance(items, list):
+            raise ValueError("Daftar bahan masakan harus berupa array list.")
 
         calculated_items = []
         tot_cal = 0.0
@@ -251,6 +268,8 @@ class CalorieService:
         tot_grams = 0.0
 
         for item in items:
+            if not isinstance(item, dict):
+                raise ValueError("Setiap item bahan masakan harus berupa objek data.")
             name = item.get("name", "")
             amount = item.get("amount", 0)
             unit = item.get("unit", "gram")
@@ -295,12 +314,15 @@ class CalorieService:
             raise ValueError("Nama makanan tidak boleh kosong.")
 
         try:
-            cal = max(0.0, float(calories))
-            p = max(0.0, float(protein))
-            c = max(0.0, float(carbs))
-            f = max(0.0, float(fat))
+            cal = float(calories)
+            p = float(protein)
+            c = float(carbs)
+            f = float(fat)
         except (ValueError, TypeError):
             raise ValueError("Nilai nutrisi harus berupa angka numerik.")
+
+        if cal < 0 or p < 0 or c < 0 or f < 0:
+            raise ValueError("Nilai nutrisi tidak boleh bernilai negatif.")
 
         log_id = self._next_id
         self._next_id += 1

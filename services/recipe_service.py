@@ -214,11 +214,13 @@ DEFAULT_RECIPES: List[Dict[str, Any]] = [
 
 class RecipeService:
     def __init__(self, ingredients_data: Optional[Dict[str, List[Dict[str, Any]]]] = None,
-                 recipes_data: Optional[List[Dict[str, Any]]] = None):
+                 recipes_data: Optional[List[Dict[str, Any]]] = None,
+                 persistent_store=None):
         self.ingredients_data = (
             ingredients_data if ingredients_data is not None else deepcopy(DEFAULT_INGREDIENTS)
         )
         self.recipes_data = recipes_data if recipes_data is not None else DEFAULT_RECIPES
+        self.persistent_store = persistent_store
         self._ingredient_name_map = self._build_ingredient_map()
 
     def _build_ingredient_map(self) -> Dict[int, str]:
@@ -231,25 +233,54 @@ class RecipeService:
             mapping[item["id"]] = item["name"]
         return mapping
 
-    def get_all_ingredients(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_ingredients(self, user_id: int = None) -> Dict[str, List[Dict[str, Any]]]:
         """Mengambil katalog seluruh bahan makanan yang dikelompokkan per kategori."""
+        if self.persistent_store and user_id is not None:
+            ingredients = deepcopy(self.ingredients_data)
+            custom_ingredients, hidden_ids = self.persistent_store.get_custom_ingredients(user_id)
+            for category, items in ingredients.items():
+                ingredients[category] = [item for item in items if item["id"] not in hidden_ids]
+            for item in custom_ingredients:
+                category = item["category"]
+                ingredients.setdefault(category, []).append({
+                    "id": item["id"],
+                    "name": item["name"],
+                    "calories_per_100g": item["calories_per_100g"],
+                })
+            return ingredients
         return self.ingredients_data
 
-    def add_ingredient(self, name: str, category: str, calories_per_100g: int = 50) -> Dict[str, Any]:
+    def add_ingredient(self, name: str, category: str, calories_per_100g: int = 50,
+                        user_id: int = None) -> Dict[str, Any]:
         """
         Menambahkan bahan makanan baru ke dalam kategori yang dipilih.
         Kategori yang didukung: 'Protein & Daging' dan 'Sayuran & Bumbu'.
         """
-        if not name or not str(name).strip():
+        if not isinstance(name, str) or not name.strip():
             raise ValueError("Nama bahan makanan tidak boleh kosong.")
 
-        clean_name = str(name).strip()
+        clean_name = name.strip()
         optional_ingredient = OPTIONAL_RECIPE_INGREDIENTS.get(clean_name.casefold())
 
-        for existing_category, items in self.ingredients_data.items():
+        existing_ingredients = self.get_all_ingredients(user_id)
+        for existing_category, items in existing_ingredients.items():
             for item in items:
                 if item["name"].strip().casefold() == clean_name.casefold():
                     return item
+
+        if self.persistent_store and user_id is not None:
+            builtin_ingredient = next(
+                (
+                    item
+                    for items in self.ingredients_data.values()
+                    for item in items
+                    if item["name"].strip().casefold() == clean_name.casefold()
+                ),
+                None,
+            )
+            if builtin_ingredient:
+                self.persistent_store.unhide_default_ingredient(user_id, builtin_ingredient["id"])
+                return builtin_ingredient
 
         # Normalisasi kategori
         target_category = "Sayuran & Bumbu"
@@ -276,24 +307,45 @@ class RecipeService:
 
         if optional_ingredient:
             cal = optional_ingredient["calories_per_100g"]
+        elif calories_per_100g is None or calories_per_100g == '':
+            cal = 50
         else:
+            if isinstance(calories_per_100g, bool):
+                raise ValueError("Estimasi kalori per 100g harus berupa angka numerik.")
             try:
-                cal = int(calories_per_100g) if calories_per_100g is not None else 50
+                raw_cal = float(calories_per_100g)
             except (ValueError, TypeError):
-                cal = 50
+                raise ValueError("Estimasi kalori per 100g harus berupa angka numerik.")
+            if not (0 <= raw_cal <= 1000):
+                raise ValueError("Estimasi kalori per 100g harus bernilai antara 0 dan 1000 kcal.")
+            cal = int(round(raw_cal))
+
+        if self.persistent_store and user_id is not None:
+            return self.persistent_store.add_custom_ingredient(
+                user_id,
+                {
+                    "name": clean_name,
+                    "category": target_category,
+                    "calories_per_100g": cal,
+                },
+                recipe_ingredient_id=optional_ingredient["id"] if optional_ingredient else None,
+            )
 
         new_item = {
             "id": new_id,
             "name": clean_name,
-            "calories_per_100g": max(cal, 0)
+            "calories_per_100g": cal
         }
 
         self.ingredients_data[target_category].append(new_item)
         self._ingredient_name_map[new_id] = clean_name
         return new_item
 
-    def delete_ingredient(self, ingredient_id: int) -> bool:
+    def delete_ingredient(self, ingredient_id: int, user_id: int = None) -> bool:
         """Menghapus bahan makanan dari katalog."""
+        if self.persistent_store and user_id is not None:
+            return self.persistent_store.delete_ingredient(user_id, ingredient_id)
+
         for category, items in self.ingredients_data.items():
             for i, item in enumerate(items):
                 if item["id"] == ingredient_id:

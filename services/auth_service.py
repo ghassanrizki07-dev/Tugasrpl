@@ -1,83 +1,45 @@
 """
 CookFit - Authentication & User Account Service
-Modul logika bisnis untuk:
-1. Registrasi akun pengguna baru dengan validasi
-2. Login/autentikasi menggunakan username & password
-3. Penyimpanan data akun ke database SQLite
-4. Hashing password menggunakan werkzeug.security
-5. Manajemen profil pengguna (update profil fisik & BMR/TDEE)
 """
 
-import sqlite3
 import os
-from datetime import date
-from typing import Dict, Any, Optional
-from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import date, datetime
+from typing import Any, Dict, Optional
 
-# Path database SQLite (mendukung lingkungan serverless read-only seperti Vercel)
-if os.environ.get('VERCEL'):
-    DB_PATH = '/tmp/cookfit.db'
-else:
-    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cookfit.db')
+from sqlalchemy import func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from services.database import Database
+
+
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cookfit.db")
 
 
 class AuthService:
-    def __init__(self, db_path: str = None):
-        self.db_path = db_path or DB_PATH
-        self._init_database()
-
-    def _get_connection(self) -> sqlite3.Connection:
-        """Membuat koneksi ke database SQLite."""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
-
-    def _init_database(self):
-        """Membuat tabel users jika belum ada."""
-        conn = self._get_connection()
-        try:
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                    password_hash TEXT NOT NULL,
-                    display_name TEXT NOT NULL,
-                    gender TEXT DEFAULT 'male',
-                    weight REAL DEFAULT 0.0,
-                    height REAL DEFAULT 0.0,
-                    age INTEGER DEFAULT 0,
-                    activity_level REAL DEFAULT 1.375,
-                    bmr INTEGER DEFAULT 0,
-                    tdee INTEGER DEFAULT 0,
-                    goal TEXT DEFAULT 'maintain',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    def __init__(self, db_path: str = None, database: Database = None):
+        if database is None:
+            database_url = os.environ.get("DATABASE_URL")
+            if os.environ.get("VERCEL") and not database_url and not db_path:
+                raise RuntimeError(
+                    "DATABASE_URL must be configured in Vercel to use persistent CookFit storage."
                 )
-            ''')
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS user_activity_days (
-                    user_id INTEGER NOT NULL,
-                    activity_date TEXT NOT NULL,
-                    PRIMARY KEY (user_id, activity_date),
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-            ''')
-            user_columns = {
-                column['name'] for column in conn.execute('PRAGMA table_info(users)')
-            }
-            if 'goal' not in user_columns:
-                conn.execute("ALTER TABLE users ADD COLUMN goal TEXT DEFAULT 'maintain'")
-            conn.commit()
-        finally:
-            conn.close()
+            database = Database(url=database_url, db_path=db_path or DB_PATH)
+
+        self.database = database
+        self.db_path = db_path or getattr(database, "db_path", None)
+        self.users = database.users
+        self.activity_days = database.user_activity_days
+
+    @staticmethod
+    def _timestamp(value):
+        if isinstance(value, datetime):
+            return value.strftime("%Y-%m-%d %H:%M:%S")
+        return value
 
     def register(self, username: str, password: str, display_name: str = None) -> Dict[str, Any]:
-        """
-        Mendaftarkan pengguna baru.
-        Setiap akun baru memiliki nilai BMR & TDEE awal bernilai 0 (belum dihitung).
-        Validasi: username unik, password minimal 4 karakter.
-        """
         if not username or not username.strip():
             raise ValueError("Username tidak boleh kosong.")
         if not password or len(password) < 4:
@@ -90,177 +52,176 @@ class AuthService:
             raise ValueError("Username minimal 3 karakter.")
         if len(clean_username) > 30:
             raise ValueError("Username maksimal 30 karakter.")
-        if not clean_username.isalnum() and not all(c.isalnum() or c in ('_', '.') for c in clean_username):
+        if not clean_username.isalnum() and not all(
+            character.isalnum() or character in ("_", ".") for character in clean_username
+        ):
             raise ValueError("Username hanya boleh mengandung huruf, angka, underscore, atau titik.")
 
-        password_hash = generate_password_hash(password)
-
-        conn = self._get_connection()
         try:
-            cursor = conn.execute(
-                '''INSERT INTO users (username, password_hash, display_name, gender, weight, height, age, activity_level, bmr, tdee)
-                   VALUES (?, ?, ?, 'male', 0.0, 0.0, 0, 1.375, 0, 0)''',
-                (clean_username, password_hash, clean_display)
-            )
-            conn.commit()
-            user_id = cursor.lastrowid
+            with self.database.engine.begin() as connection:
+                result = connection.execute(
+                    insert(self.users).values(
+                        username=clean_username,
+                        password_hash=generate_password_hash(password),
+                        display_name=clean_display,
+                        gender="male",
+                        weight=0.0,
+                        height=0.0,
+                        age=0,
+                        activity_level=1.375,
+                        bmr=0,
+                        tdee=0,
+                        goal="maintain",
+                    )
+                )
+                user_id = result.inserted_primary_key[0]
+        except IntegrityError as error:
+            raise ValueError(
+                f"Username '{clean_username}' sudah digunakan. Silakan pilih yang lain."
+            ) from error
 
-            return {
-                "id": user_id,
-                "username": clean_username,
-                "display_name": clean_display,
-                "gender": "male",
-                "weight": 0.0,
-                "height": 0.0,
-                "age": 0,
-                "activity_level": 1.375,
-                "bmr": 0,
-                "tdee": 0,
-                "goal": "maintain",
-                "message": "Registrasi berhasil!"
-            }
-        except sqlite3.IntegrityError:
-            raise ValueError(f"Username '{clean_username}' sudah digunakan. Silakan pilih yang lain.")
-        finally:
-            conn.close()
+        return {
+            "id": user_id,
+            "username": clean_username,
+            "display_name": clean_display,
+            "gender": "male",
+            "weight": 0.0,
+            "height": 0.0,
+            "age": 0,
+            "activity_level": 1.375,
+            "bmr": 0,
+            "tdee": 0,
+            "goal": "maintain",
+            "message": "Registrasi berhasil!",
+        }
 
     def login(self, username: str, password: str) -> Dict[str, Any]:
-        """
-        Memverifikasi kredensial login pengguna.
-        Mengembalikan data profil jika berhasil.
-        """
         if not username or not username.strip():
             raise ValueError("Username tidak boleh kosong.")
         if not password:
             raise ValueError("Password tidak boleh kosong.")
 
         clean_username = username.strip().lower()
+        with self.database.engine.connect() as connection:
+            row = connection.execute(
+                select(self.users).where(self.users.c.username == clean_username)
+            ).mappings().first()
 
-        conn = self._get_connection()
-        try:
-            row = conn.execute(
-                'SELECT * FROM users WHERE username = ?',
-                (clean_username,)
-            ).fetchone()
+        if not row:
+            raise ValueError("Username tidak ditemukan.")
+        if not check_password_hash(row["password_hash"], password):
+            raise ValueError("Password salah.")
 
-            if not row:
-                raise ValueError("Username tidak ditemukan.")
-
-            if not check_password_hash(row['password_hash'], password):
-                raise ValueError("Password salah.")
-
-            return {
-                "id": row['id'],
-                "username": row['username'],
-                "display_name": row['display_name'],
-                "gender": row['gender'],
-                "weight": row['weight'],
-                "height": row['height'],
-                "age": row['age'],
-                "activity_level": row['activity_level'],
-                "bmr": row['bmr'],
-                "tdee": row['tdee'],
-                "goal": row['goal']
-            }
-        finally:
-            conn.close()
+        return {
+            "id": row["id"],
+            "username": row["username"],
+            "display_name": row["display_name"],
+            "gender": row["gender"],
+            "weight": row["weight"],
+            "height": row["height"],
+            "age": row["age"],
+            "activity_level": row["activity_level"],
+            "bmr": row["bmr"],
+            "tdee": row["tdee"],
+            "goal": row["goal"],
+        }
 
     def get_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """Mengambil data profil pengguna berdasarkan ID."""
-        conn = self._get_connection()
-        try:
-            row = conn.execute(
-                'SELECT * FROM users WHERE id = ?',
-                (user_id,)
-            ).fetchone()
-
+        with self.database.engine.connect() as connection:
+            row = connection.execute(
+                select(self.users).where(self.users.c.id == user_id)
+            ).mappings().first()
             if not row:
                 return None
 
-            return {
-                "id": row['id'],
-                "username": row['username'],
-                "display_name": row['display_name'],
-                "gender": row['gender'],
-                "weight": row['weight'],
-                "height": row['height'],
-                "age": row['age'],
-                "activity_level": row['activity_level'],
-                "bmr": row['bmr'],
-                "tdee": row['tdee'],
-                "goal": row['goal'],
-                "created_at": row['created_at'],
-                "active_days": conn.execute(
-                    'SELECT COUNT(*) FROM user_activity_days WHERE user_id = ?',
-                    (user_id,)
-                ).fetchone()[0]
-            }
-        finally:
-            conn.close()
+            active_days = connection.execute(
+                select(func.count())
+                .select_from(self.activity_days)
+                .where(self.activity_days.c.user_id == user_id)
+            ).scalar_one()
+
+        return {
+            "id": row["id"],
+            "username": row["username"],
+            "display_name": row["display_name"],
+            "gender": row["gender"],
+            "weight": row["weight"],
+            "height": row["height"],
+            "age": row["age"],
+            "activity_level": row["activity_level"],
+            "bmr": row["bmr"],
+            "tdee": row["tdee"],
+            "goal": row["goal"],
+            "created_at": self._timestamp(row["created_at"]),
+            "active_days": active_days,
+        }
 
     def record_activity_day(self, user_id: int, activity_date: date = None) -> int:
-        """Record one distinct day of authenticated use for a user."""
         day = (activity_date or date.today()).isoformat()
-        conn = self._get_connection()
-        try:
-            conn.execute(
-                'INSERT OR IGNORE INTO user_activity_days (user_id, activity_date) VALUES (?, ?)',
-                (user_id, day)
+        dialect = self.database.engine.dialect.name
+        insert_statement = pg_insert if dialect == "postgresql" else sqlite_insert
+        with self.database.engine.begin() as connection:
+            connection.execute(
+                insert_statement(self.activity_days)
+                .values(user_id=user_id, activity_date=day)
+                .on_conflict_do_nothing()
             )
-            conn.commit()
-            return conn.execute(
-                'SELECT COUNT(*) FROM user_activity_days WHERE user_id = ?',
-                (user_id,)
-            ).fetchone()[0]
-        finally:
-            conn.close()
+            return connection.execute(
+                select(func.count())
+                .select_from(self.activity_days)
+                .where(self.activity_days.c.user_id == user_id)
+            ).scalar_one()
 
-    def update_profile(self, user_id: int, display_name: str = None,
-                       gender: str = None, weight: float = None,
-                       height: float = None, age: int = None,
-                       activity_level: float = None,
-                       bmr: int = None, tdee: int = None,
-                       goal: str = None) -> Dict[str, Any]:
-        """Memperbarui data profil pengguna."""
-        conn = self._get_connection()
-        try:
-            # Ambil data lama
-            row = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
-            if not row:
-                raise ValueError("User tidak ditemukan.")
+    def update_profile(
+        self,
+        user_id: int,
+        display_name: str = None,
+        gender: str = None,
+        weight: float = None,
+        height: float = None,
+        age: int = None,
+        activity_level: float = None,
+        bmr: int = None,
+        tdee: int = None,
+        goal: str = None,
+    ) -> Dict[str, Any]:
+        existing = self.get_user_by_id(user_id)
+        if not existing:
+            raise ValueError("User tidak ditemukan.")
 
-            # Update field yang diberikan
-            new_display = display_name if display_name else row['display_name']
-            new_gender = gender if gender else row['gender']
-            new_weight = weight if weight is not None else row['weight']
-            new_height = height if height is not None else row['height']
-            new_age = age if age is not None else row['age']
-            new_activity = activity_level if activity_level is not None else row['activity_level']
-            new_bmr = bmr if bmr is not None else row['bmr']
-            new_tdee = tdee if tdee is not None else row['tdee']
-            new_goal = goal if goal is not None else row['goal']
-
-            conn.execute('''
-                UPDATE users SET
-                    display_name = ?, gender = ?, weight = ?, height = ?,
-                    age = ?, activity_level = ?, bmr = ?, tdee = ?, goal = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ''', (new_display, new_gender, new_weight, new_height,
-                  new_age, new_activity, new_bmr, new_tdee, new_goal, user_id))
-            conn.commit()
-
-            return self.get_user_by_id(user_id)
-        finally:
-            conn.close()
+        values = {
+            "display_name": display_name if display_name else existing["display_name"],
+            "gender": gender if gender else existing["gender"],
+            "weight": weight if weight is not None else existing["weight"],
+            "height": height if height is not None else existing["height"],
+            "age": age if age is not None else existing["age"],
+            "activity_level": activity_level
+            if activity_level is not None else existing["activity_level"],
+            "bmr": bmr if bmr is not None else existing["bmr"],
+            "tdee": tdee if tdee is not None else existing["tdee"],
+            "goal": goal if goal is not None else existing["goal"],
+            "updated_at": func.now(),
+        }
+        with self.database.engine.begin() as connection:
+            connection.execute(
+                update(self.users).where(self.users.c.id == user_id).values(**values)
+            )
+        return self.get_user_by_id(user_id)
 
     def get_all_users(self):
-        """Mengambil daftar semua pengguna (tanpa password hash)."""
-        conn = self._get_connection()
-        try:
-            rows = conn.execute(
-                'SELECT id, username, display_name, created_at FROM users ORDER BY created_at DESC'
-            ).fetchall()
-            return [dict(row) for row in rows]
-        finally:
-            conn.close()
+        with self.database.engine.connect() as connection:
+            rows = connection.execute(
+                select(
+                    self.users.c.id,
+                    self.users.c.username,
+                    self.users.c.display_name,
+                    self.users.c.created_at,
+                ).order_by(self.users.c.created_at.desc())
+            ).mappings().all()
+        return [
+            {
+                **dict(row),
+                "created_at": self._timestamp(row["created_at"]),
+            }
+            for row in rows
+        ]

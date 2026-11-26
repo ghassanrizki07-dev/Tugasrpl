@@ -208,6 +208,188 @@ class TestCalorieAndNutriTrackerEngine(unittest.TestCase):
         self.assertAlmostEqual(result["total_protein"], 62.6, places=1)
 
 
+def _make_bmr_valid_test(gender, w, h, a, expected_bmr):
+    """Membangun test case parameterized untuk akurasi rumus Mifflin-St Jeor."""
+    def test_fn(self):
+        self.assertAlmostEqual(self.service.calculate_bmr(gender, w, h, a), expected_bmr, places=2)
+    return test_fn
+
+
+def _make_bmr_invalid_test(kwargs):
+    """Membangun test case parameterized untuk validasi batas fisik calculate_bmr."""
+    def test_fn(self):
+        with self.assertRaises(ValueError):
+            self.service.calculate_bmr(**kwargs)
+    return test_fn
+
+
+def _make_tdee_test(bmr, act, should_raise, expected_tdee=None):
+    """Membangun test case parameterized untuk perhitungan dan batas TDEE."""
+    def test_fn(self):
+        if should_raise:
+            with self.assertRaises(ValueError):
+                self.service.calculate_tdee(bmr, act)
+        else:
+            self.assertEqual(self.service.calculate_tdee(bmr, act), expected_tdee)
+    return test_fn
+
+
+def _make_portion_unit_test(name, amount, unit, expected_grams, expected_cal):
+    """Membangun test case parameterized untuk konversi satuan dan preset bahan."""
+    def test_fn(self):
+        res = self.service.calculate_ingredient_portion(name, amount, unit)
+        self.assertEqual(res["total_grams"], expected_grams)
+        self.assertAlmostEqual(res["calories"], expected_cal, places=1)
+    return test_fn
+
+
+class TestCalorieServiceExtended(unittest.TestCase):
+    def setUp(self):
+        self.service = CalorieService()
+        self.service.clear_logs()
+
+    def test_goal_unknown_falls_back_to_maintain(self):
+        """Goal tidak dikenal otomatis fallback ke 'maintain'."""
+        res = self.service.calculate_profile_metrics("male", 70, 175, 25, 1.55, goal="keto_extreme")
+        self.assertEqual(res["goal"], "maintain")
+        self.assertEqual(res["daily_calorie_target"], res["tdee"])
+
+    def test_goal_cutting_case_insensitive_and_trimmed(self):
+        """Goal '  CUTTING  ' dinormalisasi ke 'cutting'."""
+        res = self.service.calculate_profile_metrics("male", 70, 175, 25, 1.55, goal="  CUTTING  ")
+        self.assertEqual(res["goal"], "cutting")
+        self.assertEqual(res["calorie_adjustment"], -300)
+
+    def test_goal_cutting_macro_ratios(self):
+        """Mode cutting menerapkan rasio 35% protein, 40% karbo, 25% lemak."""
+        res = self.service.calculate_profile_metrics("male", 70, 175, 25, 1.55, goal="cutting")
+        target = res["daily_calorie_target"]
+        self.assertEqual(res["target_macros"]["protein_grams"], int(round((target * 0.35) / 4)))
+        self.assertEqual(res["target_macros"]["carbs_grams"], int(round((target * 0.40) / 4)))
+        self.assertEqual(res["target_macros"]["fat_grams"], int(round((target * 0.25) / 9)))
+
+    def test_goal_bulking_macro_ratios(self):
+        """Mode bulking menerapkan rasio 25% protein, 55% karbo, 20% lemak."""
+        res = self.service.calculate_profile_metrics("male", 70, 175, 25, 1.55, goal="bulking")
+        target = res["daily_calorie_target"]
+        self.assertEqual(res["target_macros"]["protein_grams"], int(round((target * 0.25) / 4)))
+        self.assertEqual(res["target_macros"]["carbs_grams"], int(round((target * 0.55) / 4)))
+        self.assertEqual(res["target_macros"]["fat_grams"], int(round((target * 0.20) / 9)))
+
+    def test_goal_maintain_macro_ratios(self):
+        """Mode maintain menerapkan rasio 25% protein, 50% karbo, 25% lemak."""
+        res = self.service.calculate_profile_metrics("male", 70, 175, 25, 1.55, goal="maintain")
+        target = res["daily_calorie_target"]
+        self.assertEqual(res["target_macros"]["protein_grams"], int(round((target * 0.25) / 4)))
+        self.assertEqual(res["target_macros"]["carbs_grams"], int(round((target * 0.50) / 4)))
+        self.assertEqual(res["target_macros"]["fat_grams"], int(round((target * 0.25) / 9)))
+
+    def test_daily_summary_zero_tdee_safe_without_zero_division(self):
+        """Ringkasan dengan target_tdee=0 tetap aman mengembalikan 0.0% tanpa ZeroDivisionError."""
+        self.service.add_daily_log("Telur", calories=155)
+        summary = self.service.get_daily_summary(target_tdee=0)
+        self.assertEqual(summary["calorie_percentage"], 0.0)
+
+    def test_portion_string_numeric_custom_calories_supported(self):
+        """Parameter cal_per_100g berbentuk string numerik diparsing ke float tanpa TypeError."""
+        res = self.service.calculate_ingredient_portion(
+            name="Dada Ayam",
+            amount=150,
+            unit="gram",
+            cal_per_100g="200",
+            protein_per_100g="25"
+        )
+        self.assertEqual(res["calories"], 300.0)
+        self.assertEqual(res["protein"], 37.5)
+
+    def test_portion_negative_custom_calories_raises_value_error(self):
+        """Nilai negatif pada cal_per_100g harus memicu ValueError."""
+        with self.assertRaises(ValueError):
+            self.service.calculate_ingredient_portion("Ayam", 100, "gram", cal_per_100g=-50)
+
+    def test_portion_non_numeric_custom_protein_raises_value_error(self):
+        """Nilai non-numerik pada protein_per_100g harus memicu ValueError."""
+        with self.assertRaises(ValueError):
+            self.service.calculate_ingredient_portion("Ayam", 100, "gram", protein_per_100g="abc")
+
+    def test_calculate_cooking_recipe_non_list_raises_value_error(self):
+        """Payload items bukan list harus memicu ValueError."""
+        with self.assertRaises(ValueError):
+            self.service.calculate_cooking_recipe("bukan list")
+
+    def test_calculate_cooking_recipe_non_dict_element_raises_value_error(self):
+        """Elemen bukan dict di dalam items harus memicu ValueError (bukan AttributeError)."""
+        with self.assertRaises(ValueError):
+            self.service.calculate_cooking_recipe(["Daging Ayam"])
+
+    def test_daily_log_negative_calories_or_macro_raises_value_error(self):
+        """CalorieService.add_daily_log menolak kalori atau makro negatif dengan ValueError."""
+        with self.assertRaises(ValueError):
+            self.service.add_daily_log("Menu Invalid", calories=-100)
+        with self.assertRaises(ValueError):
+            self.service.add_daily_log("Menu Invalid", calories=100, protein=-5)
+
+
+for _name, _g, _w, _h, _a, _exp in [
+    ("bmr_male_standard", "male", 70, 175, 25, 1673.75),
+    ("bmr_male_pria_alias", "pria", 70, 175, 25, 1673.75),
+    ("bmr_male_uppercase", "MALE", 80, 180, 30, 1780.0),
+    ("bmr_female_standard", "female", 50, 158, 22, 1216.5),
+    ("bmr_female_wanita_alias", "wanita", 50, 158, 22, 1216.5),
+    ("bmr_female_uppercase", "WANITA", 60, 165, 28, 1330.25),
+    ("bmr_male_min_weight_height_age", "male", 1, 1, 1, 16.25),
+    ("bmr_male_max_weight", "male", 350, 200, 40, 4555.0),
+    ("bmr_female_max_height", "female", 70, 260, 30, 2014.0),
+    ("bmr_male_max_age", "male", 60, 165, 130, 986.25),
+    ("bmr_decimal_weight_height", "female", 54.5, 162.4, 27, 1264.0),
+    ("bmr_athlete_heavy", "male", 95, 190, 24, 2022.5),
+    ("bmr_senior_female", "female", 58, 155, 65, 1062.75),
+    ("bmr_teen_male", "male", 52, 168, 15, 1500.0),
+]:
+    setattr(TestCalorieServiceExtended, f"test_{_name}", _make_bmr_valid_test(_g, _w, _h, _a, _exp))
+
+for _name, _kw in [
+    ("bmr_invalid_weight_zero", {"gender": "male", "weight_kg": 0, "height_cm": 170, "age_years": 22}),
+    ("bmr_invalid_weight_over_max", {"gender": "male", "weight_kg": 350.1, "height_cm": 170, "age_years": 22}),
+    ("bmr_invalid_height_negative", {"gender": "female", "weight_kg": 55, "height_cm": -10, "age_years": 22}),
+    ("bmr_invalid_height_over_max", {"gender": "female", "weight_kg": 55, "height_cm": 260.1, "age_years": 22}),
+    ("bmr_invalid_age_zero", {"gender": "male", "weight_kg": 65, "height_cm": 170, "age_years": 0}),
+    ("bmr_invalid_age_over_max", {"gender": "male", "weight_kg": 65, "height_cm": 170, "age_years": 131}),
+    ("bmr_invalid_non_numeric_weight", {"gender": "male", "weight_kg": "berat", "height_cm": 170, "age_years": 22}),
+    ("bmr_invalid_none_height", {"gender": "male", "weight_kg": 65, "height_cm": None, "age_years": 22}),
+    ("bmr_invalid_gender_empty", {"gender": "", "weight_kg": 65, "height_cm": 170, "age_years": 22}),
+    ("bmr_invalid_gender_none", {"gender": None, "weight_kg": 65, "height_cm": 170, "age_years": 22}),
+]:
+    setattr(TestCalorieServiceExtended, f"test_{_name}", _make_bmr_invalid_test(_kw))
+
+for _name, _bmr, _act, _err, _exp in [
+    ("tdee_min_activity_1_0", 1500, 1.0, False, 1500),
+    ("tdee_sedentary_1_2", 1500, 1.2, False, 1800),
+    ("tdee_light_1_375", 1600, 1.375, False, 2200),
+    ("tdee_moderate_1_55", 1600, 1.55, False, 2480),
+    ("tdee_active_1_725", 1600, 1.725, False, 2760),
+    ("tdee_very_active_1_9", 1600, 1.9, False, 3040),
+    ("tdee_max_activity_2_5", 1500, 2.5, False, 3750),
+    ("tdee_invalid_zero_bmr", 0, 1.375, True, None),
+    ("tdee_invalid_activity_below", 1500, 0.99, True, None),
+    ("tdee_invalid_activity_above", 1500, 2.51, True, None),
+]:
+    setattr(TestCalorieServiceExtended, f"test_{_name}", _make_tdee_test(_bmr, _act, _err, _exp))
+
+for _name, _ing, _amt, _unit, _grams, _cal in [
+    ("unit_g_alias", "Dada Ayam", 100, "g", 100.0, 165.0),
+    ("unit_kg_conversion", "Nasi", 0.2, "kg", 200.0, 260.0),
+    ("unit_sdm_minyak", "Minyak", 1, "sdm", 15.0, 132.6),
+    ("unit_sdt_kecap", "Kecap Manis", 2, "sdt", 10.0, 15.0),
+    ("unit_ikat_kangkung", "Kangkung", 1, "ikat", 150.0, 28.5),
+    ("unit_potong_tempe", "Tempe", 2, "potong", 100.0, 190.0),
+    ("unit_buah_tomat", "Tomat", 2, "buah", 100.0, 18.0),
+    ("unit_unknown_fallback_gram", "Wortel", 100, "mangkuk", 100.0, 41.0),
+    ("preset_ikan_match", "Ikan", 200, "gram", 200.0, 220.0),
+    ("preset_unknown_ingredient_default", "Quinoa Organik", 100, "gram", 100.0, 50.0),
+]:
+    setattr(TestCalorieServiceExtended, f"test_{_name}", _make_portion_unit_test(_ing, _amt, _unit, _grams, _cal))
+
 
 if __name__ == "__main__":
     unittest.main()

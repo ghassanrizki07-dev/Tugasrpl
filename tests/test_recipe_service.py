@@ -209,5 +209,123 @@ class TestRecipeMatchingEngine(unittest.TestCase):
         self.assertFalse(self.service.delete_ingredient(99999))
 
 
+def _make_match_edge_test(selected_ids, expected_top_score, check_all_zero=False):
+    """Membangun test case parameterized untuk pencocokan bahan resep."""
+    def test_fn(self):
+        results = self.service.match_recipes(selected_ids)
+        self.assertEqual(len(results), 9)
+        if check_all_zero:
+            self.assertTrue(all(r["match_score"] == 0 for r in results))
+        else:
+            self.assertEqual(results[0]["match_score"], expected_top_score)
+    return test_fn
+
+
+def _make_category_norm_test(raw_category, expected_category):
+    """Membangun test case parameterized untuk normalisasi kategori bahan."""
+    def test_fn(self):
+        item = self.service.add_ingredient(f"Bahan_{raw_category}", raw_category, 80)
+        self.assertIn(item, self.service.ingredients_data[expected_category])
+    return test_fn
+
+
+def _make_calorie_validation_test(cal_value, should_raise, expected_cal=None):
+    """Membangun test case parameterized untuk validasi kalori bahan baru."""
+    def test_fn(self):
+        if should_raise:
+            with self.assertRaises(ValueError):
+                self.service.add_ingredient("Bahan Uji Validasi", "Sayuran & Bumbu", cal_value)
+        else:
+            item = self.service.add_ingredient(f"Bahan_{cal_value}", "Sayuran & Bumbu", cal_value)
+            self.assertEqual(item["calories_per_100g"], expected_cal)
+    return test_fn
+
+
+class TestRecipeServiceExtended(unittest.TestCase):
+    def setUp(self):
+        self.service = RecipeService()
+
+    def test_duplicate_add_ingredient_case_insensitive_returns_existing(self):
+        """Penambahan bahan duplikat berbeda huruf besar/kecil tidak menambah entri ganda."""
+        before_len = len(self.service.get_all_ingredients()["Protein & Daging"])
+        existing = self.service.add_ingredient("  telur ayam  ", "Protein & Daging", 999)
+        self.assertEqual(existing["id"], 1)
+        self.assertEqual(len(self.service.get_all_ingredients()["Protein & Daging"]), before_len)
+
+    def test_duplicate_optional_ingredient_after_add_returns_same_item(self):
+        """Bahan opsional yang ditambahkan dua kali tidak membuat entri ganda."""
+        first = self.service.add_ingredient("Tuna Kaleng", "Protein & Daging")
+        second = self.service.add_ingredient("tuna kaleng", "Sayuran & Bumbu")
+        self.assertEqual(first["id"], second["id"])
+
+    def test_delete_optional_ingredient_keeps_recipe_missing_name(self):
+        """Menghapus bahan opsional tetap menjaga nama bahan pada daftar missing resep."""
+        added = self.service.add_ingredient("Brokoli", "Sayuran & Bumbu")
+        self.assertTrue(self.service.delete_ingredient(added["id"]))
+        res = next(r for r in self.service.match_recipes([7, 5]) if r["id"] == 7)
+        self.assertEqual(res["missing_ingredients"][0]["name"], "Brokoli")
+
+    def test_get_recipe_by_id_valid_and_invalid(self):
+        """Pencarian resep berdasarkan ID mengembalikan salinan dict atau None."""
+        recipe = self.service.get_recipe_by_id(1)
+        self.assertIsNotNone(recipe)
+        self.assertEqual(recipe["title"], "Tumis Kangkung Telur")
+        self.assertIsNone(self.service.get_recipe_by_id(9999))
+
+    def test_match_recipes_with_empty_required_ids(self):
+        """Resep tanpa required_ids menghasilkan skor 100% dan missing kosong."""
+        svc = RecipeService(recipes_data=[{"id": 99, "title": "Air Putih", "required_ids": []}])
+        res = svc.match_recipes([])
+        self.assertEqual(res[0]["match_score"], 100)
+        self.assertEqual(res[0]["missing_ingredients"], [])
+
+
+for _name, _ids, _top, _zero in [
+    ("match_set_input_full", {1, 4, 5}, 100, False),
+    ("match_tuple_input_full", (2, 5, 6), 100, False),
+    ("match_duplicate_ids_ignored", [1, 1, 1, 4, 5, 5], 100, False),
+    ("match_partial_single_ingredient", [4], 33, False),
+    ("match_partial_two_ingredients", [1, 3], 67, False),
+    ("match_unknown_ids_zero", [999, 1000], 0, True),
+    ("match_dict_input_zero", {"1": 1}, 0, True),
+    ("match_bool_input_zero", True, 0, True),
+    ("match_mixed_valid_invalid_ids", ["2", "invalid", None, 5, 6], 100, False),
+    ("match_negative_ids_zero", [-1, -5], 0, True),
+]:
+    setattr(TestRecipeServiceExtended, f"test_{_name}", _make_match_edge_test(_ids, _top, _zero))
+
+for _name, _raw_cat, _exp_cat in [
+    ("cat_norm_protein_lower", "protein", "Protein & Daging"),
+    ("cat_norm_daging_mixed", "Daging Sapi", "Protein & Daging"),
+    ("cat_norm_protein_exact", "Protein & Daging", "Protein & Daging"),
+    ("cat_norm_sayur_lower", "sayur", "Sayuran & Bumbu"),
+    ("cat_norm_bumbu_lower", "bumbu dapur", "Sayuran & Bumbu"),
+    ("cat_norm_unknown_fallback", "Lainnya", "Sayuran & Bumbu"),
+]:
+    setattr(TestRecipeServiceExtended, f"test_{_name}", _make_category_norm_test(_raw_cat, _exp_cat))
+
+for _name, _ing_name, _exp_id in [
+    ("optional_tuna_kaleng", "Tuna Kaleng", 7),
+    ("optional_edamame", "edamame", 8),
+    ("optional_brokoli", "BROKOLI", 9),
+    ("optional_timun", " timun ", 10),
+]:
+    def _make_opt(n, eid):
+        def _fn(self):
+            item = self.service.add_ingredient(n, "Lainnya")
+            self.assertEqual(item["id"], eid)
+        return _fn
+    setattr(TestRecipeServiceExtended, f"test_{_name}", _make_opt(_ing_name, _exp_id))
+
+for _name, _cal, _raises, _exp in [
+    ("cal_zero_valid", 0, False, 0),
+    ("cal_max_boundary_valid", 1000, False, 1000),
+    ("cal_negative_rejected", -100, True, None),
+    ("cal_over_limit_rejected", 1500, True, None),
+    ("cal_non_numeric_rejected", "abc", True, None),
+]:
+    setattr(TestRecipeServiceExtended, f"test_{_name}", _make_calorie_validation_test(_cal, _raises, _exp))
+
+
 if __name__ == "__main__":
     unittest.main()
