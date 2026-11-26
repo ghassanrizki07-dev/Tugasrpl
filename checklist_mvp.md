@@ -14,21 +14,21 @@
 
 ## Temuan P10 dan Status Perbaikan
 
-Temuan 1–4 diamati langsung pada deployment; temuan 5–11 ditelusuri pada implementasi layanan. Perbaikan lokal sudah diterapkan untuk temuan di bawah, tetapi belum diuji pada deployment baru. Database Neon harus dibuat dan `DATABASE_URL` dipasang di Vercel terlebih dahulu. **Temuan ini belum dibuat sebagai GitHub Issues, sehingga P10 belum selesai dan tidak boleh dinyatakan seluruhnya solved.**
+Temuan 1–4 diamati langsung pada deployment; temuan 5–11 ditelusuri pada implementasi layanan. Perbaikan kode telah dipush ke branch `v1.0` pada commit `e269fbc`, dan 11 GitHub Issues telah dibuat. Semua issue masih **OPEN** sampai database Neon disiapkan, `DATABASE_URL` dipasang di Vercel, lalu deployment baru diuji. Karena itu P10 belum boleh dinyatakan seluruhnya solved.
 
-| No. | Temuan | Perbaikan | Status |
-|---|---|---|---|
-| 1 | Akun hilang setelah reload/perpindahan instance Vercel | Menggunakan SQLAlchemy dan PostgreSQL persisten; deployment Vercel menolak startup tanpa `DATABASE_URL`. | MENUNGGU KONFIGURASI NEON DAN UJI LIVE |
-| 2 | UI tetap menampilkan halaman utama setelah API autentikasi gagal | HTTP 401/404 mengarahkan pengguna ke login; aksi logout gagal menampilkan error, bukan berpura-pura berhasil. | MENUNGGU UJI LIVE |
-| 3 | Pantry memakai data fallback saat API gagal | Data Pantry hanya dirender setelah API berhasil; kegagalan menampilkan pesan error. | MENUNGGU UJI LIVE |
-| 4 | Rekomendasi memakai data fallback saat API gagal | Rekomendasi dihapus dari tampilan saat request gagal dan pesan error ditampilkan. | MENUNGGU UJI LIVE |
-| 5 | Catatan tracker hilang saat proses server berganti | Log disimpan di database dengan tanggal harian zona Asia/Jakarta. | MENUNGGU UJI LIVE |
-| 6 | Catatan tracker tidak diisolasi antar akun | Query tambah, baca, dan hapus log dibatasi dengan `user_id`. | MENUNGGU UJI LIVE |
-| 7 | Jurnal “harian” tidak memiliki batas tanggal | Log menyimpan tanggal dan GET hanya membaca tanggal saat ini zona Asia/Jakarta. | MENUNGGU UJI LIVE |
-| 8 | Daftar belanja hilang saat proses server berganti | Operasi daftar belanja memakai tabel PostgreSQL persisten. | MENUNGGU UJI LIVE |
-| 9 | Daftar belanja tidak diisolasi antar akun | Operasi daftar belanja dibatasi dengan `user_id`. | MENUNGGU UJI LIVE |
-| 10 | Bahan custom Pantry hilang saat proses server berganti | Bahan custom disimpan di database persisten. | MENUNGGU UJI LIVE |
-| 11 | Bahan custom Pantry dibagikan antar akun | Bahan custom dan bahan bawaan yang disembunyikan disimpan per pengguna. | MENUNGGU UJI LIVE |
+| Issue | No. | Temuan | Perbaikan | Status |
+|---|---|---|---|---|
+| [#1](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/1) | 1 | Akun hilang setelah reload/perpindahan instance Vercel | Menggunakan SQLAlchemy dan PostgreSQL persisten; deployment Vercel menolak startup tanpa `DATABASE_URL`. | MENUNGGU KONFIGURASI NEON DAN UJI LIVE |
+| [#2](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/2) | 2 | UI tetap menampilkan halaman utama setelah API autentikasi gagal | HTTP 401/404 mengarahkan pengguna ke login; aksi logout gagal menampilkan error, bukan berpura-pura berhasil. | MENUNGGU UJI LIVE |
+| [#3](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/3) | 3 | Pantry memakai data fallback saat API gagal | Data Pantry hanya dirender setelah API berhasil; kegagalan menampilkan pesan error. | MENUNGGU UJI LIVE |
+| [#4](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/4) | 4 | Rekomendasi memakai data fallback saat API gagal | Rekomendasi dihapus dari tampilan saat request gagal dan pesan error ditampilkan. | MENUNGGU UJI LIVE |
+| [#5](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/5) | 5 | Catatan tracker hilang saat proses server berganti | Log disimpan di database dengan tanggal harian zona Asia/Jakarta. | MENUNGGU UJI LIVE |
+| [#6](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/6) | 6 | Catatan tracker tidak diisolasi antar akun | Query tambah, baca, dan hapus log dibatasi dengan `user_id`. | MENUNGGU UJI LIVE |
+| [#7](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/7) | 7 | Jurnal “harian” tidak memiliki batas tanggal | Log menyimpan tanggal dan GET hanya membaca tanggal saat ini zona Asia/Jakarta. | MENUNGGU UJI LIVE |
+| [#8](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/8) | 8 | Daftar belanja hilang saat proses server berganti | Operasi daftar belanja memakai tabel PostgreSQL persisten. | MENUNGGU UJI LIVE |
+| [#9](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/9) | 9 | Daftar belanja tidak diisolasi antar akun | Operasi daftar belanja dibatasi dengan `user_id`. | MENUNGGU UJI LIVE |
+| [#10](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/10) | 10 | Bahan custom Pantry hilang saat proses server berganti | Bahan custom disimpan di database persisten. | MENUNGGU UJI LIVE |
+| [#11](https://github.com/ghassanrizki07-dev/Tugasrpl/issues/11) | 11 | Bahan custom Pantry dibagikan antar akun | Bahan custom dan bahan bawaan yang disembunyikan disimpan per pengguna. | MENUNGGU UJI LIVE |
 
 ## Checklist Fitur
 

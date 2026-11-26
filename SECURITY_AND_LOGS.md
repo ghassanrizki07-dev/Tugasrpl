@@ -82,5 +82,5 @@ Ran 222 tests
 
 OK (222/222 tests passed, 0 failures, 0 errors)
 ```
-Rinciannya 192 tes service/unit dan 30 tes API. Jumlah tes service/unit belum mencapai target P11 sebanyak 200. Tes lokal memverifikasi persistensi lintas instance service dan isolasi data pengguna dengan SQLite sementara; hasil tersebut belum membuktikan koneksi Neon atau deployment live. Temuan P10 juga belum menjadi GitHub Issues dan belum dapat dinyatakan solved sebelum dibuat, dideploy, dan diuji di live.
+Rinciannya 192 tes service/unit dan 30 tes API. Jumlah tes service/unit belum mencapai target P11 sebanyak 200. Tes lokal memverifikasi persistensi lintas instance service dan isolasi data pengguna dengan SQLite sementara; hasil tersebut belum membuktikan koneksi Neon atau deployment live. Sebelas temuan P10 telah dicatat sebagai [GitHub Issues #1–#11](https://github.com/ghassanrizki07-dev/Tugasrpl/issues), tetapi semuanya tetap terbuka sampai deployment live diverifikasi.
 
